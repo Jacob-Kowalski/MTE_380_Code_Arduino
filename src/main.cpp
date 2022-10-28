@@ -1,7 +1,8 @@
 #include <Arduino.h>
-#include <Wire.h> 
-#include "MPU6050.h"
-//defining motor pins
+#include <Wire.h>
+#include <MPU6050_6Axis_MotionApps20.h>
+
+// defining motor pins
 #define FRONT_LEFT_FORWARD 3
 #define FRONT_LEFT_BACKWARD 2
 #define BACK_LEFT_FORWARD 4
@@ -15,6 +16,37 @@
 #define TRIGGER_FRONT 12
 #define ECHO_FRONT 13
 
+// ================================================
+// ===               Gryo Things                ===
+// ================================================
+
+#define OUTPUT_READABLE_YAWPITCHROLL
+
+struct Accel
+{
+  double x;
+  double y;
+  double z;
+};
+
+struct Orientation
+{
+  double yaw;
+  double pitch;
+  double roll;
+};
+
+MPU6050 mpu_;
+
+uint16_t imu_packetsize_;
+
+Accel accel = Accel{};
+Orientation orientation = Orientation{};
+
+uint8_t fifoBuffer[64]; // FIFO storage buffer
+Quaternion q;           // [w, x, y, z]         quaternion container
+VectorFloat gravity;    // [x, y, z]            gravity vector
+float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 // Trigger Pin of Ultrasonic Sensor
 const int pingPinSide = 10;
@@ -24,40 +56,38 @@ const int pingPinSide = 10;
 const int echoPinSide = 11;
 // const int echoPinFront = 13;
 
-//all units in mm
+// all units in mm
 int turns = 1;
-bool notDoneCourse = true;
-int maxSpeed = 255;
+bool doneCourse = false;
+int maxSpeed = 150;
 
-//the wanted distances from each wall
-int frontWallLimit = 100;
-int sideWallLimit = 50;
+// the wanted distances from each wall in mm
+int frontWallLimit = 250;
+int sideWallLimit = 100;
 
-//Current measurements
+// Current measurements
 int sideDistance = 0;
 int frontDistance = 0;
+int previousSideDistance = 50;
+bool firstReading = true;
 
-//The errors for PID
-double KP = 1;
-double KD = 0;
-double KI = 0;
+// The errors for PID
+double KP = 1500 / 1000;
+double KD = 1200 / 1000;
+double KI = 1000 / 1000;
 double error = 0;
 double previousError = 0;
+double previousIntegralError;
 double PIDCorrection = 0;
 
-//times for PID
+// times for PID
 double currentTime = 0;
 double previousTime = 0;
 
-//for ensuring sampling rate
+// for ensuring sampling rate
 int frontSensorTime = 0;
 int sideSensorTime = 0;
-
-float gyroTime = 0;
-
-float pitch = 0;
-float roll = 0;
-float yaw = 0;
+bool pitTrap = 0;
 
 double PIDController();
 void adjustMotors(int maxSpeed, double PIDCorrection);
@@ -68,13 +98,16 @@ void initiateTurn();
 void turn();
 void startMotors();
 void stopMotors();
+bool initializeMPU();
+void readMPU();
 
-MPU6050 mpu;
-
-void setup() {
+void setup()
+{
   Serial.begin(115200);
-  while (!Serial) {}
-  //motor Pinout
+  while (!Serial)
+  {
+  }
+  // motor Pinout
   pinMode(BACK_LEFT_FORWARD, OUTPUT);
   pinMode(BACK_LEFT_BACKWARD, OUTPUT);
   pinMode(FRONT_LEFT_FORWARD, OUTPUT);
@@ -98,111 +131,139 @@ void setup() {
   // ultrasonic power
   digitalWrite(UTRASONIC_POWER, HIGH);
 
-  // Calibrate gyroscope. The calibration must be at rest.
-  // If you don't want calibrate, comment this line.
-  mpu.begin();
-  mpu.calibrateGyro();
-  // Set threshold sensivty. Default 3.
-  // If you don't want use threshold, comment this line or set 0.
-  mpu.setThreshold(3);
+  bool MPUstatus = initializeMPU();
+  if (MPUstatus)
+  {
+    Serial.print("MPU initialized successfully");
+  }
 
-  while (getFrontDistance() > 30) {delay(50);}
-  startMotors();
+  delay(5000);
+
+  adjustMotors(maxSpeed, 0);
 }
 
-void loop() {
+void loop()
+{
+  if (doneCourse)
+  {
+    stopMotors();
+  }
+  else
+  {
+    sideDistance = getSideDistance();
+    frontDistance = getFrontDistance();
+    updateAngles();
 
-  updateAngles();
-  Serial.print("yaw: ");
-  Serial.println(yaw);
-  Serial.print("pitch: ");
-  Serial.println(pitch);
-  Serial.print("roll: ");
-  Serial.println(roll);
-  Serial.println();
-  delay(1000);
-  // if (!notDoneCourse) {
-  //   stopMotors();
-  // } else {
-  //   sideDistance = getSideDistance();
-  //   frontDistance = getFrontDistance();
-  //   updateAngles();
+    PIDCorrection = PIDController();
+    checkPitTrap();
 
-  //   PIDCorrection = PIDController();
-
-  //   if (frontDistance >= frontWallLimit) {
-  //     initiateTurn();
-  //   } else if (error >= 5) {
-  //     adjustMotors(maxSpeed, PIDCorrection);
-  //   }
-  // }
+    if (frontDistance <= 200 && !pitTrap) // frontWallLimit)
+    {
+      initiateTurn();
+    }
+    else if (error >= 5)
+    {
+      adjustMotors(maxSpeed, PIDCorrection);
+    }
+  }
 }
 
-double PIDController() {
+double PIDController()
+{
 
   currentTime = micros();
 
+  // error is negative when far away from wall
   error = sideWallLimit - sideDistance;
-  //1000000 is for seconds can be changes for a nice KD
+  // 1000000 is for seconds can be changes for a nice KD
   double rateError = (error - previousError) * 1000000 / (currentTime - previousTime);
-
-  double overallGain = KP * error + KD * rateError;
+  double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
+  double correction = KP * error + KD * rateError;
 
   previousError = error;
   previousTime = currentTime;
-
-  return overallGain;
+  previousIntegralError = integralError;
+  if (correction > 255)
+  {
+    correction = 255;
+  }
+  return correction;
 }
 
-void adjustMotors(int maxSpeed, double correction) {
-  uint8_t leftSpeed = abs((correction > 0) ? maxSpeed : maxSpeed * (float)(1.0 - abs(correction) / 255.0));
-  uint8_t rightSpeed = abs((correction < 0) ? maxSpeed : maxSpeed * (float)(1.0 - abs(correction) / 255.0));
+void adjustMotors(int maxSpeed, double correction)
+{
+  int16_t leftSpeed = ((correction > 0) ? maxSpeed : maxSpeed * (float)(1.0 - abs(correction) / 255.0));
+  int16_t rightSpeed = ((correction < 0) ? maxSpeed : maxSpeed * (float)(1.0 - abs(correction) / 255.0));
 
-  if (leftSpeed == 0) leftSpeed = 0;
-  else if (leftSpeed < 115) leftSpeed = 115;
-  if (rightSpeed == 0) rightSpeed = 0;
-  else if (rightSpeed < 115) rightSpeed = 115;
+  if (leftSpeed == 0)
+    leftSpeed = 0;
+  else if (abs(leftSpeed) < 115)
+    leftSpeed = (leftSpeed > 0) ? 115 : -115;
+  if (rightSpeed == 0)
+    rightSpeed = 0;
+  else if (abs(rightSpeed) < 115)
+    rightSpeed = (rightSpeed > 0) ? 115 : -115;
 
-  if (maxSpeed > 0) {
-    analogWrite(BACK_LEFT_FORWARD, leftSpeed);
+  if (leftSpeed > 0)
+  {
+    analogWrite(BACK_LEFT_FORWARD, abs(leftSpeed));
     analogWrite(BACK_LEFT_BACKWARD, 0);
-    analogWrite(FRONT_LEFT_FORWARD, leftSpeed);
+    analogWrite(FRONT_LEFT_FORWARD, abs(leftSpeed));
     analogWrite(FRONT_LEFT_BACKWARD, 0);
-    analogWrite(BACK_RIGHT_FORWARD, rightSpeed);
-    analogWrite(BACK_RIGHT_BACKWARD, 0);
-    analogWrite(FRONT_RIGHT_FORWARD, rightSpeed);
-    analogWrite(FRONT_RIGHT_BACKWARD, 0);
-  } else {
+  }
+  else
+  {
     analogWrite(BACK_LEFT_FORWARD, 0);
-    analogWrite(BACK_LEFT_BACKWARD, leftSpeed);
+    analogWrite(BACK_LEFT_BACKWARD, abs(leftSpeed));
     analogWrite(FRONT_LEFT_FORWARD, 0);
-    analogWrite(FRONT_LEFT_BACKWARD, leftSpeed);
+    analogWrite(FRONT_LEFT_BACKWARD, abs(leftSpeed));
+  }
+
+  if (rightSpeed > 0)
+  {
+    analogWrite(BACK_RIGHT_FORWARD, abs(rightSpeed));
+    analogWrite(BACK_RIGHT_BACKWARD, 0);
+    analogWrite(FRONT_RIGHT_FORWARD, abs(rightSpeed));
+    analogWrite(FRONT_RIGHT_BACKWARD, 0);
+  }
+  else
+  {
     analogWrite(BACK_RIGHT_FORWARD, 0);
-    analogWrite(BACK_RIGHT_BACKWARD, rightSpeed);
+    analogWrite(BACK_RIGHT_BACKWARD, abs(rightSpeed));
     analogWrite(FRONT_RIGHT_FORWARD, 0);
-    analogWrite(FRONT_RIGHT_BACKWARD, rightSpeed);
+    analogWrite(FRONT_RIGHT_BACKWARD, abs(rightSpeed));
   }
 }
 
-int getSideDistance() {
-  //cheching delay time for max sensor
-  if (millis() - sideSensorTime < 25) {
+int getSideDistance()
+{
+  // cheching delay time for max sensor
+  if (millis() - sideSensorTime < 25)
+  {
     delay(25 - (millis() - sideSensorTime));
   }
-
+  previousSideDistance = sideDistance;
   digitalWrite(pingPinSide, HIGH);
   delayMicroseconds(10);
   digitalWrite(pingPinSide, LOW);
   double duration = pulseIn(echoPinSide, HIGH);
 
   sideSensorTime = millis();
-  int time = (duration / 58.0 * 10);
-  return time;
+  int distance = (duration / 58.0 * 10);
+
+  if (abs(distance - sideDistance) > 50 && !firstReading)
+  {
+    distance = sideDistance;
+  }
+  firstReading = false;
+  return distance;
 }
 
-int getFrontDistance() {
-  //cheching delay time for max sensor
-  if (millis() - frontSensorTime < 25) {
+int getFrontDistance()
+{
+  // cheching delay time for max sensor
+  if (millis() - frontSensorTime < 25)
+  {
     delay(25 - (millis() - frontSensorTime));
   }
 
@@ -212,47 +273,55 @@ int getFrontDistance() {
   double duration = pulseIn(ECHO_FRONT, HIGH);
   // Serial.println(duration);
   // Serial.println("Duration");
-  //updating last use time
+  // updating last use time
   frontSensorTime = millis();
   int time = (duration / 58.0 * 10);
   return time;
 }
 
-void updateAngles() {
-  int timeStep = micros() - gyroTime;
-  Vector norm = mpu.readNormalizeGyro();
-  pitch = pitch + norm.YAxis * timeStep;
-  roll = roll + norm.XAxis * timeStep;
-  yaw = yaw + norm.ZAxis * timeStep;
-
-  gyroTime = micros();
+void updateAngles()
+{
+  readMPU();
 }
 
-void initiateTurn() {
+void initiateTurn()
+{
   // Adjust set Point and turning distance based on number of turns made
-  sideWallLimit = 0.03 + floor((turns - 1) / 4) * 0.30;
-  frontWallLimit = 0.1 + floor(turns / 4) * 0.30;
+  sideWallLimit = 30 + floor((turns - 1) / 4) * 300;
+  frontWallLimit = 100 + floor(turns / 4) * 300;
   turns++;
-  if ((turns - 1) == 11) {
+  // Serial.print(turns);
+  if ((turns - 1) == 11)
+  {
+    Serial.print("Course completed");
     // shut off motors
-    notDoneCourse = 0;
-  } else {
+    doneCourse = true;
+  }
+  else
+  {
     turn();
   }
 }
 
-void turn() {
-  //motor turns
+void turn()
+{
+  // motor turns
+  adjustMotors(150, 255 + 150);
 
-  while (yaw < 90) {
+  // float angle = 90 * (((turns) % 4) + 1) - 185;
+  float angle = ypr[0] * 180 / M_PI;
+
+  // while (ypr[0] * 180 / M_PI < angle || angle - ypr[0] * 180 / M_PI < -40)
+  while (abs(abs(angle) - abs(ypr[0] * 180 / M_PI)) < 80)
+  {
     updateAngles();
   }
 
-  //stuff here to go straight
-  yaw = 0;
+  adjustMotors(maxSpeed, 0);
 }
 
-void startMotors() {
+void startMotors()
+{
   digitalWrite(BACK_LEFT_FORWARD, HIGH);
   digitalWrite(BACK_LEFT_BACKWARD, LOW);
   digitalWrite(FRONT_LEFT_FORWARD, HIGH);
@@ -263,7 +332,8 @@ void startMotors() {
   digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
 }
 
-void stopMotors() {
+void stopMotors()
+{
   digitalWrite(BACK_LEFT_FORWARD, LOW);
   digitalWrite(BACK_LEFT_BACKWARD, LOW);
   digitalWrite(FRONT_LEFT_FORWARD, LOW);
@@ -272,4 +342,63 @@ void stopMotors() {
   digitalWrite(BACK_RIGHT_BACKWARD, LOW);
   digitalWrite(FRONT_RIGHT_FORWARD, LOW);
   digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
+}
+
+bool initializeMPU()
+{
+  uint8_t devStatus = mpu_.dmpInitialize();
+
+  // mpu_.setXAccelOffset(-1414);
+  // mpu_.setYAccelOffset(161);
+  // mpu_.setZAccelOffset(1202);
+  // mpu_.setXGyroOffset(96);
+  // mpu_.setYGyroOffset(-39);
+  // mpu_.setZGyroOffset(-11);
+
+  // mpu_.setXGyroOffset(220);
+  // mpu_.setYGyroOffset(76);
+  // mpu_.setZGyroOffset(-85);
+  // mpu_.setZAccelOffset(1788);
+
+  mpu_.CalibrateAccel(6);
+  mpu_.CalibrateGyro(6);
+
+  // make sure it worked (returns 0 if so)
+  if (devStatus == 0)
+  {
+    mpu_.setDMPEnabled(true);
+
+    // get expected DMP packet size for later comparison
+    imu_packetsize_ = mpu_.dmpGetFIFOPacketSize();
+  }
+  else
+  {
+    // ERROR!
+    // 1 = initial memory load failed
+    // 2 = DMP configuration updates failed
+    // (if it's going to break, usually the code will be 1)
+    Serial.println("DMP Initialization failed (code ");
+    Serial.print(devStatus);
+    Serial.print(")");
+  }
+
+  return true;
+}
+
+void readMPU()
+{
+  if (mpu_.dmpGetCurrentFIFOPacket(fifoBuffer))
+  {
+    mpu_.dmpGetQuaternion(&q, fifoBuffer);
+    mpu_.dmpGetGravity(&gravity, &q);
+    mpu_.dmpGetYawPitchRoll(ypr, &q, &gravity);
+  }
+}
+
+void checkPitTrap()
+{
+  if (ypr[1] * 180 / M_PI < -10)
+    pitTrap = true;
+  if (ypr[1] * 180 / M_PI > 10 && pitTrap)
+    pitTrap = false;
 }
