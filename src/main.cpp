@@ -72,22 +72,24 @@ int previousSideDistance = 50;
 bool firstReading = true;
 
 // The errors for PID
-double KP = 1500 / 1000;
-double KD = 1200 / 1000;
+double KP = 1000 / 1000;
+double KD = 000 / 1000;
 double KI = 1000 / 1000;
 double error = 0;
 double previousError = 0;
 double previousIntegralError;
 double PIDCorrection = 0;
-
+double correction = 0;
 // times for PID
 double currentTime = 0;
 double previousTime = 0;
 
 // for ensuring sampling rate
-int frontSensorTime = 0;
-int sideSensorTime = 0;
+uint32_t frontSensorTime = 0;
+uint32_t sideSensorTime = 0;
 bool pitTrap = 0;
+
+int angleCount = 0;
 
 double PIDController();
 void adjustMotors(int maxSpeed, double PIDCorrection);
@@ -100,6 +102,7 @@ void startMotors();
 void stopMotors();
 bool initializeMPU();
 void readMPU();
+void checkPitTrap();
 
 void setup()
 {
@@ -137,7 +140,7 @@ void setup()
     Serial.print("MPU initialized successfully");
   }
 
-  delay(5000);
+  delay(2000);
 
   adjustMotors(maxSpeed, 0);
 }
@@ -159,9 +162,9 @@ void loop()
 
     if (frontDistance <= 200 && !pitTrap) // frontWallLimit)
     {
-      initiateTurn();
+      // initiateTurn();
     }
-    else if (error >= 5)
+    else // if (error >= 5)
     {
       adjustMotors(maxSpeed, PIDCorrection);
     }
@@ -176,16 +179,20 @@ double PIDController()
   // error is negative when far away from wall
   error = sideWallLimit - sideDistance;
   // 1000000 is for seconds can be changes for a nice KD
-  double rateError = (error - previousError) * 1000000 / (currentTime - previousTime);
-  double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
-  double correction = KP * error + KD * rateError;
+  // double rateError = (error - previousError) * 1000000 / (currentTime - previousTime);
+  // double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
+  correction = KP * error; //+ KD * rateError;
 
   previousError = error;
   previousTime = currentTime;
-  previousIntegralError = integralError;
-  if (correction > 255)
+  // previousIntegralError = integralError;
+  // if (correction > 0)
+  // {
+  //   correction = correction * 5;
+  // }
+  if (abs(correction) > 255)
   {
-    correction = 255;
+    correction = (correction > 0) ? 255 : -255;
   }
   return correction;
 }
@@ -238,7 +245,7 @@ void adjustMotors(int maxSpeed, double correction)
 int getSideDistance()
 {
   // cheching delay time for max sensor
-  if (millis() - sideSensorTime < 25)
+  if (millis() - sideSensorTime <= 25)
   {
     delay(25 - (millis() - sideSensorTime));
   }
@@ -251,7 +258,7 @@ int getSideDistance()
   sideSensorTime = millis();
   int distance = (duration / 58.0 * 10);
 
-  if (abs(distance - sideDistance) > 50 && !firstReading)
+  if (abs(distance - sideDistance) > 20 && !firstReading)
   {
     distance = sideDistance;
   }
