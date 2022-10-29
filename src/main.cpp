@@ -1,6 +1,11 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <MPU6050_6Axis_MotionApps20.h>
+
+#include "sensors/gyro/gyro.h"
+
+// =====================================================
+// ===               Pin Definitions                 ===
+// =====================================================
 
 // defining motor pins
 #define FRONT_LEFT_FORWARD 3
@@ -16,38 +21,6 @@
 #define TRIGGER_FRONT 12
 #define ECHO_FRONT 13
 
-// ================================================
-// ===               Gryo Things                ===
-// ================================================
-
-#define OUTPUT_READABLE_YAWPITCHROLL
-
-struct Accel
-{
-  double x;
-  double y;
-  double z;
-};
-
-struct Orientation
-{
-  double yaw;
-  double pitch;
-  double roll;
-};
-
-MPU6050 mpu_;
-
-uint16_t imu_packetsize_;
-
-Accel accel = Accel{};
-Orientation orientation = Orientation{};
-
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-Quaternion q;           // [w, x, y, z]         quaternion container
-VectorFloat gravity;    // [x, y, z]            gravity vector
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
 // Trigger Pin of Ultrasonic Sensor
 const int pingPinSide = 10;
 // const int pingPinFront = 12;
@@ -56,10 +29,15 @@ const int pingPinSide = 10;
 const int echoPinSide = 11;
 // const int echoPinFront = 13;
 
+// =====================================================
+// ===               Global Variables                ===
+// =====================================================
+
 // all units in mm
+
 int turns = 1;
 bool doneCourse = false;
-int maxSpeed = 150;
+int maxSpeed = 240;
 
 // the wanted distances from each wall in mm
 int frontWallLimit = 250;
@@ -72,9 +50,10 @@ int previousSideDistance = 50;
 bool firstReading = true;
 
 // The errors for PID
-double KP = 1000 / 1000;
-double KD = 000 / 1000;
-double KI = 1000 / 1000;
+double KP = 800.0 / 1000.0;
+double KD = 300.0 / 1000.0;
+double KI = 0 / 1000;
+
 double error = 0;
 double previousError = 0;
 double previousIntegralError;
@@ -91,6 +70,13 @@ bool pitTrap = 0;
 
 int angleCount = 0;
 
+// Sensors
+gyro MPU;
+
+// ========================================================
+// ===               Function Prototypes                ===
+// ========================================================
+
 double PIDController();
 void adjustMotors(int maxSpeed, double PIDCorrection);
 int getSideDistance();
@@ -100,8 +86,6 @@ void initiateTurn();
 void turn();
 void startMotors();
 void stopMotors();
-bool initializeMPU();
-void readMPU();
 void checkPitTrap();
 
 void setup()
@@ -134,8 +118,8 @@ void setup()
   // ultrasonic power
   digitalWrite(UTRASONIC_POWER, HIGH);
 
-  bool MPUstatus = initializeMPU();
-  if (MPUstatus)
+  bool gyroStatus = MPU.init();
+  if (gyroStatus)
   {
     Serial.print("MPU initialized successfully");
   }
@@ -162,7 +146,7 @@ void loop()
 
     if (frontDistance <= 200 && !pitTrap) // frontWallLimit)
     {
-      // initiateTurn();
+      initiateTurn();
     }
     else // if (error >= 5)
     {
@@ -177,11 +161,11 @@ double PIDController()
   currentTime = micros();
 
   // error is negative when far away from wall
-  error = sideWallLimit - sideDistance;
+  error = double(sideWallLimit - sideDistance);
   // 1000000 is for seconds can be changes for a nice KD
-  // double rateError = (error - previousError) * 1000000 / (currentTime - previousTime);
+  double rateError = (error - previousError) * 1000000.0 / (currentTime - previousTime);
   // double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
-  correction = KP * error; //+ KD * rateError;
+  correction = KP * error + KD * rateError;
 
   previousError = error;
   previousTime = currentTime;
@@ -190,10 +174,11 @@ double PIDController()
   // {
   //   correction = correction * 5;
   // }
-  if (abs(correction) > 255)
+  if (abs(correction) > 140)
   {
-    correction = (correction > 0) ? 255 : -255;
+    correction = (correction > 0) ? 140 : -140;
   }
+
   return correction;
 }
 
@@ -258,7 +243,7 @@ int getSideDistance()
   sideSensorTime = millis();
   int distance = (duration / 58.0 * 10);
 
-  if (abs(distance - sideDistance) > 20 && !firstReading)
+  if (abs(distance - sideDistance) > 600 && !firstReading)
   {
     distance = sideDistance;
   }
@@ -288,7 +273,7 @@ int getFrontDistance()
 
 void updateAngles()
 {
-  readMPU();
+  MPU.readData();
 }
 
 void initiateTurn()
@@ -316,10 +301,10 @@ void turn()
   adjustMotors(150, 255 + 150);
 
   // float angle = 90 * (((turns) % 4) + 1) - 185;
-  float angle = ypr[0] * 180 / M_PI;
+  float initialAngle = MPU.getYaw();
 
   // while (ypr[0] * 180 / M_PI < angle || angle - ypr[0] * 180 / M_PI < -40)
-  while (abs(abs(angle) - abs(ypr[0] * 180 / M_PI)) < 80)
+  while (abs(abs(initialAngle) - abs(MPU.getYaw())) < 80)
   {
     updateAngles();
   }
@@ -351,61 +336,10 @@ void stopMotors()
   digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
 }
 
-bool initializeMPU()
-{
-  uint8_t devStatus = mpu_.dmpInitialize();
-
-  // mpu_.setXAccelOffset(-1414);
-  // mpu_.setYAccelOffset(161);
-  // mpu_.setZAccelOffset(1202);
-  // mpu_.setXGyroOffset(96);
-  // mpu_.setYGyroOffset(-39);
-  // mpu_.setZGyroOffset(-11);
-
-  // mpu_.setXGyroOffset(220);
-  // mpu_.setYGyroOffset(76);
-  // mpu_.setZGyroOffset(-85);
-  // mpu_.setZAccelOffset(1788);
-
-  mpu_.CalibrateAccel(6);
-  mpu_.CalibrateGyro(6);
-
-  // make sure it worked (returns 0 if so)
-  if (devStatus == 0)
-  {
-    mpu_.setDMPEnabled(true);
-
-    // get expected DMP packet size for later comparison
-    imu_packetsize_ = mpu_.dmpGetFIFOPacketSize();
-  }
-  else
-  {
-    // ERROR!
-    // 1 = initial memory load failed
-    // 2 = DMP configuration updates failed
-    // (if it's going to break, usually the code will be 1)
-    Serial.println("DMP Initialization failed (code ");
-    Serial.print(devStatus);
-    Serial.print(")");
-  }
-
-  return true;
-}
-
-void readMPU()
-{
-  if (mpu_.dmpGetCurrentFIFOPacket(fifoBuffer))
-  {
-    mpu_.dmpGetQuaternion(&q, fifoBuffer);
-    mpu_.dmpGetGravity(&gravity, &q);
-    mpu_.dmpGetYawPitchRoll(ypr, &q, &gravity);
-  }
-}
-
 void checkPitTrap()
 {
-  if (ypr[1] * 180 / M_PI < -10)
+  if (MPU.getPitch() < -10)
     pitTrap = true;
-  if (ypr[1] * 180 / M_PI > 10 && pitTrap)
+  if (MPU.getPitch() > 10 && pitTrap)
     pitTrap = false;
 }
