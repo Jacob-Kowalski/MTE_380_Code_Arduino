@@ -1,3 +1,6 @@
+#ifndef ULTRASONIC_H
+#define ULTRASONIC_H
+
 #define UTRASONIC_POWER 50
 
 // Echo and trigger pins for ultrasonic sensor
@@ -14,3 +17,5 @@ public:
     void init();
     int readDistance();
 };
+
+#endif

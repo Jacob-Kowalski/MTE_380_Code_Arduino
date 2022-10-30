@@ -1,3 +1,6 @@
+#ifndef GYRO_H
+#define GYRO_H
+
 #include <MPU6050_6Axis_MotionApps20.h>
 
 class Gyro
@@ -14,3 +17,5 @@ private:
     uint16_t imu_packetsize_;
     float ypr[3]; // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 };
+
+#endif

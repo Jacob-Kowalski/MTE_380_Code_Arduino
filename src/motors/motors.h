@@ -1,3 +1,6 @@
+#ifndef MOTORS_H
+#define MOTORS_H
+
 // Motor Pins
 #define FRONT_LEFT_FORWARD 3
 #define FRONT_LEFT_BACKWARD 2
@@ -16,3 +19,5 @@ public:
     void stop();
     void adjust(int maxSpeed, double correction);
 };
+
+#endif
