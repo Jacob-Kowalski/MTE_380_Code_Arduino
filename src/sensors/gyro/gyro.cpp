@@ -1,6 +1,6 @@
 #include "gyro.h"
 
-bool gyro::init()
+bool Gyro::init()
 {
     uint8_t devStatus = mpu_.dmpInitialize();
 
@@ -30,7 +30,7 @@ bool gyro::init()
     return true;
 }
 
-void gyro::readData()
+void Gyro::readData()
 {
     uint8_t fifoBuffer[64]; // FIFO storage buffer
     Quaternion q;           // [w, x, y, z]         quaternion container
@@ -44,17 +44,17 @@ void gyro::readData()
     }
 }
 
-float gyro::getYaw()
+float Gyro::getYaw()
 {
     return ypr[0] * 180 / M_PI;
 }
 
-float gyro::getPitch()
+float Gyro::getPitch()
 {
     return ypr[1] * 180 / M_PI;
 }
 
-float gyro::getRoll()
+float Gyro::getRoll()
 {
     return ypr[2] * 180 / M_PI;
 }

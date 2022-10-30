@@ -52,7 +52,7 @@ bool pitTrap = 0;
 int angleCount = 0;
 
 // Initialize Sensor objects
-gyro MPU;
+Gyro MPU;
 Ultrasonic ultrasonicFront('f');
 Ultrasonic ultrasonicSide('s');
 
