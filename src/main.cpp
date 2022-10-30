@@ -2,20 +2,11 @@
 #include <Wire.h>
 
 #include "sensors/gyro/gyro.h"
+#include "motors/motors.h"
 
 // =====================================================
 // ===               Pin Definitions                 ===
 // =====================================================
-
-// defining motor pins
-#define FRONT_LEFT_FORWARD 3
-#define FRONT_LEFT_BACKWARD 2
-#define BACK_LEFT_FORWARD 4
-#define BACK_LEFT_BACKWARD 5
-#define BACK_RIGHT_FORWARD 7
-#define BACK_RIGHT_BACKWARD 6
-#define FRONT_RIGHT_FORWARD 8
-#define FRONT_RIGHT_BACKWARD 9
 #define UTRASONIC_POWER 50
 
 #define TRIGGER_FRONT 12
@@ -70,22 +61,22 @@ bool pitTrap = 0;
 
 int angleCount = 0;
 
-// Sensors
+// Initialize Sensor objects
 gyro MPU;
+
+// Initialize Motor object
+Motors motors;
 
 // ========================================================
 // ===               Function Prototypes                ===
 // ========================================================
 
 double PIDController();
-void adjustMotors(int maxSpeed, double PIDCorrection);
 int getSideDistance();
 int getFrontDistance();
 void updateAngles();
 void initiateTurn();
 void turn();
-void startMotors();
-void stopMotors();
 void checkPitTrap();
 
 void setup()
@@ -94,15 +85,8 @@ void setup()
   while (!Serial)
   {
   }
-  // motor Pinout
-  pinMode(BACK_LEFT_FORWARD, OUTPUT);
-  pinMode(BACK_LEFT_BACKWARD, OUTPUT);
-  pinMode(FRONT_LEFT_FORWARD, OUTPUT);
-  pinMode(FRONT_LEFT_BACKWARD, OUTPUT);
-  pinMode(BACK_RIGHT_FORWARD, OUTPUT);
-  pinMode(BACK_RIGHT_BACKWARD, OUTPUT);
-  pinMode(FRONT_RIGHT_FORWARD, OUTPUT);
-  pinMode(FRONT_RIGHT_BACKWARD, OUTPUT);
+  motors.init();
+
   // utrasonic power
 
   pinMode(UTRASONIC_POWER, OUTPUT);
@@ -126,14 +110,14 @@ void setup()
 
   delay(2000);
 
-  adjustMotors(maxSpeed, 0);
+  motors.adjust(maxSpeed, 0);
 }
 
 void loop()
 {
   if (doneCourse)
   {
-    stopMotors();
+    motors.stop();
   }
   else
   {
@@ -150,7 +134,7 @@ void loop()
     }
     else // if (error >= 5)
     {
-      adjustMotors(maxSpeed, PIDCorrection);
+      motors.adjust(maxSpeed, PIDCorrection);
     }
   }
 }
@@ -180,51 +164,6 @@ double PIDController()
   }
 
   return correction;
-}
-
-void adjustMotors(int maxSpeed, double correction)
-{
-  int16_t leftSpeed = ((correction > 0) ? maxSpeed : maxSpeed * (float)(1.0 - abs(correction) / 255.0));
-  int16_t rightSpeed = ((correction < 0) ? maxSpeed : maxSpeed * (float)(1.0 - abs(correction) / 255.0));
-
-  if (leftSpeed == 0)
-    leftSpeed = 0;
-  else if (abs(leftSpeed) < 115)
-    leftSpeed = (leftSpeed > 0) ? 115 : -115;
-  if (rightSpeed == 0)
-    rightSpeed = 0;
-  else if (abs(rightSpeed) < 115)
-    rightSpeed = (rightSpeed > 0) ? 115 : -115;
-
-  if (leftSpeed > 0)
-  {
-    analogWrite(BACK_LEFT_FORWARD, abs(leftSpeed));
-    analogWrite(BACK_LEFT_BACKWARD, 0);
-    analogWrite(FRONT_LEFT_FORWARD, abs(leftSpeed));
-    analogWrite(FRONT_LEFT_BACKWARD, 0);
-  }
-  else
-  {
-    analogWrite(BACK_LEFT_FORWARD, 0);
-    analogWrite(BACK_LEFT_BACKWARD, abs(leftSpeed));
-    analogWrite(FRONT_LEFT_FORWARD, 0);
-    analogWrite(FRONT_LEFT_BACKWARD, abs(leftSpeed));
-  }
-
-  if (rightSpeed > 0)
-  {
-    analogWrite(BACK_RIGHT_FORWARD, abs(rightSpeed));
-    analogWrite(BACK_RIGHT_BACKWARD, 0);
-    analogWrite(FRONT_RIGHT_FORWARD, abs(rightSpeed));
-    analogWrite(FRONT_RIGHT_BACKWARD, 0);
-  }
-  else
-  {
-    analogWrite(BACK_RIGHT_FORWARD, 0);
-    analogWrite(BACK_RIGHT_BACKWARD, abs(rightSpeed));
-    analogWrite(FRONT_RIGHT_FORWARD, 0);
-    analogWrite(FRONT_RIGHT_BACKWARD, abs(rightSpeed));
-  }
 }
 
 int getSideDistance()
@@ -298,7 +237,7 @@ void initiateTurn()
 void turn()
 {
   // motor turns
-  adjustMotors(150, 255 + 150);
+  motors.adjust(150, 255 + 150);
 
   // float angle = 90 * (((turns) % 4) + 1) - 185;
   float initialAngle = MPU.getYaw();
@@ -309,31 +248,7 @@ void turn()
     updateAngles();
   }
 
-  adjustMotors(maxSpeed, 0);
-}
-
-void startMotors()
-{
-  digitalWrite(BACK_LEFT_FORWARD, HIGH);
-  digitalWrite(BACK_LEFT_BACKWARD, LOW);
-  digitalWrite(FRONT_LEFT_FORWARD, HIGH);
-  digitalWrite(FRONT_LEFT_BACKWARD, LOW);
-  digitalWrite(BACK_RIGHT_FORWARD, HIGH);
-  digitalWrite(BACK_RIGHT_BACKWARD, LOW);
-  digitalWrite(FRONT_RIGHT_FORWARD, HIGH);
-  digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
-}
-
-void stopMotors()
-{
-  digitalWrite(BACK_LEFT_FORWARD, LOW);
-  digitalWrite(BACK_LEFT_BACKWARD, LOW);
-  digitalWrite(FRONT_LEFT_FORWARD, LOW);
-  digitalWrite(FRONT_LEFT_BACKWARD, LOW);
-  digitalWrite(BACK_RIGHT_FORWARD, LOW);
-  digitalWrite(BACK_RIGHT_BACKWARD, LOW);
-  digitalWrite(FRONT_RIGHT_FORWARD, LOW);
-  digitalWrite(FRONT_RIGHT_BACKWARD, LOW);
+  motors.adjust(maxSpeed, 0);
 }
 
 void checkPitTrap()
