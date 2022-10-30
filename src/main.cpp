@@ -2,23 +2,13 @@
 #include <Wire.h>
 
 #include "sensors/gyro/gyro.h"
+#include "sensors/ultrasonic/ultrasonic.h"
 #include "motors/motors.h"
 
 // =====================================================
 // ===               Pin Definitions                 ===
 // =====================================================
 #define UTRASONIC_POWER 50
-
-#define TRIGGER_FRONT 12
-#define ECHO_FRONT 13
-
-// Trigger Pin of Ultrasonic Sensor
-const int pingPinSide = 10;
-// const int pingPinFront = 12;
-
-// Echo Pin of Ultrasonic Sensor
-const int echoPinSide = 11;
-// const int echoPinFront = 13;
 
 // =====================================================
 // ===               Global Variables                ===
@@ -63,6 +53,8 @@ int angleCount = 0;
 
 // Initialize Sensor objects
 gyro MPU;
+Ultrasonic ultrasonicFront('f');
+Ultrasonic ultrasonicSide('s');
 
 // Initialize Motor object
 Motors motors;
@@ -85,28 +77,17 @@ void setup()
   while (!Serial)
   {
   }
+
+  // Initialize motors/ultrasonic/gyro
   motors.init();
 
-  // utrasonic power
-
   pinMode(UTRASONIC_POWER, OUTPUT);
-
   delay(100);
-
-  pinMode(TRIGGER_FRONT, OUTPUT);
-  pinMode(ECHO_FRONT, INPUT);
-  pinMode(pingPinSide, OUTPUT);
-  pinMode(echoPinSide, INPUT);
-  digitalWrite(TRIGGER_FRONT, LOW);
-  digitalWrite(pingPinSide, LOW);
-  // ultrasonic power
+  ultrasonicFront.init();
+  ultrasonicSide.init();
   digitalWrite(UTRASONIC_POWER, HIGH);
 
-  bool gyroStatus = MPU.init();
-  if (gyroStatus)
-  {
-    Serial.print("MPU initialized successfully");
-  }
+  MPU.init();
 
   delay(2000);
 
@@ -168,20 +149,16 @@ double PIDController()
 
 int getSideDistance()
 {
-  // cheching delay time for max sensor
+  // checking delay time for max sensor
   if (millis() - sideSensorTime <= 25)
   {
     delay(25 - (millis() - sideSensorTime));
   }
   previousSideDistance = sideDistance;
-  digitalWrite(pingPinSide, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(pingPinSide, LOW);
-  double duration = pulseIn(echoPinSide, HIGH);
-
   sideSensorTime = millis();
-  int distance = (duration / 58.0 * 10);
+  int distance = ultrasonicSide.readDistance();
 
+  // If difference between readings is too high, dismiss reading
   if (abs(distance - sideDistance) > 600 && !firstReading)
   {
     distance = sideDistance;
@@ -192,22 +169,14 @@ int getSideDistance()
 
 int getFrontDistance()
 {
-  // cheching delay time for max sensor
-  if (millis() - frontSensorTime < 25)
+  // checking delay time for max sensor
+  if (millis() - frontSensorTime <= 25)
   {
     delay(25 - (millis() - frontSensorTime));
   }
-
-  digitalWrite(TRIGGER_FRONT, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIGGER_FRONT, LOW);
-  double duration = pulseIn(ECHO_FRONT, HIGH);
-  // Serial.println(duration);
-  // Serial.println("Duration");
-  // updating last use time
   frontSensorTime = millis();
-  int time = (duration / 58.0 * 10);
-  return time;
+  int distance = ultrasonicFront.readDistance();
+  return distance;
 }
 
 void updateAngles()
