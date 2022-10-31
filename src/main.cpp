@@ -52,7 +52,7 @@ bool pitTrap = 0;
 int angleCount = 0;
 
 // Initialize Sensor objects
-Gyro MPU;
+Gyro mpu;
 Ultrasonic ultrasonicFront('f');
 Ultrasonic ultrasonicSide('s');
 
@@ -89,9 +89,7 @@ void setup()
   delay(100);
   ultrasonicFront.init();
   ultrasonicSide.init();
-  digitalWrite(UTRASONIC_POWER, HIGH);
-
-  MPU.init();
+  mpu.init();
 
   delay(2000);
 
@@ -193,7 +191,7 @@ int getFrontDistance()
 
 void updateAngles()
 {
-  MPU.readData();
+  mpu.readData();
 }
 
 void initiateTurn()
@@ -221,10 +219,10 @@ void turn()
   motors.adjust(150, 255 + 150);
 
   // float angle = 90 * (((turns) % 4) + 1) - 185;
-  float initialAngle = MPU.getYaw();
+  float initialAngle = mpu.getYaw();
 
   // while (ypr[0] * 180 / M_PI < angle || angle - ypr[0] * 180 / M_PI < -40)
-  while (abs(abs(initialAngle) - abs(MPU.getYaw())) < 80)
+  while (abs(abs(initialAngle) - abs(mpu.getYaw())) < 80)
   {
     updateAngles();
   }
@@ -234,8 +232,8 @@ void turn()
 
 void checkPitTrap()
 {
-  if (MPU.getPitch() < -10)
+  if (mpu.getPitch() < -10)
     pitTrap = true;
-  if (MPU.getPitch() > 10 && pitTrap)
+  if (mpu.getPitch() > 10 && pitTrap)
     pitTrap = false;
 }
