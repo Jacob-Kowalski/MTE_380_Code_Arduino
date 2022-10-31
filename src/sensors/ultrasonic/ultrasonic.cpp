@@ -16,9 +16,12 @@ void Ultrasonic::init()
         digitalWrite(TRIGGER_FRONT, LOW);
         break;
     case 's':
+        pinMode(UTRASONIC_POWER, OUTPUT);
+        delay(100);
         pinMode(TRIGGER_SIDE, OUTPUT);
         pinMode(ECHO_SIDE, INPUT);
         digitalWrite(TRIGGER_SIDE, LOW);
+        digitalWrite(UTRASONIC_POWER, HIGH);
         break;
     }
 }

@@ -84,9 +84,6 @@ void setup()
 
   // Initialize motors/ultrasonic/gyro
   motors.init();
-
-  pinMode(UTRASONIC_POWER, OUTPUT);
-  delay(100);
   ultrasonicFront.init();
   ultrasonicSide.init();
   mpu.init();
