@@ -366,11 +366,7 @@ void loop(void)
     Serial.println();
     Serial.println("*** Disconnected from AP so rebooting ***");
     Serial.println();
-    #if defined(ESP8266)
     ESP.reset();
-    #else
-    ESP.restart();
-    #endif
   }
 
   mpu_loop();
