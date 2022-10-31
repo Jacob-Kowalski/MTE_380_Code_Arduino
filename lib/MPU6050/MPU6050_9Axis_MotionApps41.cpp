@@ -4,11 +4,11 @@
 // Updates should (hopefully) always be available at https://github.com/jrowberg/i2cdevlib
 //
 // Changelog:
-//     ... - ongoing debug release
+//  2021/09/27 - split implementations out of header files, finally
 
 /* ============================================
 I2Cdev device library code is placed under the MIT license
-Copyright (c) 2012 Jeff Rowberg
+Copyright (c) 2021 Jeff Rowberg
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,16 +30,10 @@ THE SOFTWARE.
 ===============================================
 */
 
-#ifndef _MPU6050_9AXIS_MOTIONAPPS41_H_
-#define _MPU6050_9AXIS_MOTIONAPPS41_H_
-
-#include "I2Cdev.h"
-#include "helper_3dmath.h"
-
 // MotionApps 4.1 DMP implementation, built using the MPU-9150 "MotionFit" board
 #define MPU6050_INCLUDE_DMP_MOTIONAPPS41
 
-#include "MPU6050.h"
+#include "MPU6050_9Axis_MotionApps41.h"
 
 // Tom Carpenter's conditional PROGMEM code
 // http://forum.arduino.cc/index.php?topic=129407.0
@@ -123,7 +117,7 @@ THE SOFTWARE.
 // this block of memory gets written to the MPU on start-up, and it seems
 // to be volatile memory, so it has to be done each time (it only takes ~1
 // second though)
-const unsigned char dmpMemory[MPU6050_DMP_CODE_SIZE] PROGMEM = {
+static const unsigned char dmpMemory[MPU6050_DMP_CODE_SIZE] PROGMEM = {
     // bank 0, 256 bytes
     0xFB, 0x00, 0x00, 0x3E, 0x00, 0x0B, 0x00, 0x36, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00,
     0x00, 0x65, 0x00, 0x54, 0xFF, 0xEF, 0x00, 0x00, 0xFA, 0x80, 0x00, 0x0B, 0x12, 0x82, 0x00, 0x01,
@@ -268,7 +262,7 @@ const unsigned char dmpMemory[MPU6050_DMP_CODE_SIZE] PROGMEM = {
 #define MPU6050_DMP_FIFO_RATE_DIVISOR 0x03
 #endif
 
-const unsigned char dmpConfig[MPU6050_DMP_CONFIG_SIZE] PROGMEM = {
+static const unsigned char dmpConfig[MPU6050_DMP_CONFIG_SIZE] PROGMEM = {
 //  BANK    OFFSET  LENGTH  [DATA]
     0x02,   0xEC,   0x04,   0x00, 0x47, 0x7D, 0x1A,   // ?
     0x03,   0x82,   0x03,   0x4C, 0xCD, 0x6C,         // FCFG_1 inv_set_gyro_calibration
@@ -340,7 +334,7 @@ const unsigned char dmpUpdates[MPU6050_DMP_UPDATES_SIZE] PROGMEM = {
     0x00,   0x60,   0x04,   0x00, 0x40, 0x00, 0x00
 };
 
-uint8_t MPU6050::dmpInitialize() {
+uint8_t MPU6050_9Axis_MotionApps41::dmpInitialize() {
     // reset device
     DEBUG_PRINTLN(F("\n\nResetting MPU6050..."));
     reset();
@@ -363,6 +357,7 @@ uint8_t MPU6050::dmpInitialize() {
     setMemoryStartAddress(0x06);
     DEBUG_PRINTLN(F("Checking hardware revision..."));
     uint8_t hwRevision = readMemoryByte();
+    (void)hwRevision; // suppress unused variable compile warning
     DEBUG_PRINT(F("Revision @ user[16][6] = "));
     DEBUG_PRINTLNF(hwRevision, HEX);
     DEBUG_PRINTLN(F("Resetting memory bank selection to 0..."));
@@ -371,6 +366,7 @@ uint8_t MPU6050::dmpInitialize() {
     // check OTP bank valid
     DEBUG_PRINTLN(F("Reading OTP bank valid flag..."));
     uint8_t otpValid = getOTPBankValid();
+    (void)otpValid; // suppress unused variable compile warning
     DEBUG_PRINT(F("OTP bank is "));
     DEBUG_PRINTLN(otpValid ? F("valid!") : F("invalid!"));
 
@@ -386,10 +382,10 @@ uint8_t MPU6050::dmpInitialize() {
     DEBUG_PRINT(F("Z gyro offset = "));
     DEBUG_PRINTLN(zgOffset);
     
-    I2Cdev::readByte(devAddr, MPU6050_RA_USER_CTRL, buffer); // ?
+    I2Cdev::readByte(devAddr, MPU6050_RA_USER_CTRL, buffer, I2Cdev::readTimeout, wireObj); // ?
     
     DEBUG_PRINTLN(F("Enabling interrupt latch, clear on any read, AUX bypass enabled"));
-    I2Cdev::writeByte(devAddr, MPU6050_RA_INT_PIN_CFG, 0x32);
+    I2Cdev::writeByte(devAddr, MPU6050_RA_INT_PIN_CFG, 0x32, wireObj);
 
     // enable MPU AUX I2C bypass mode
     //DEBUG_PRINTLN(F("Enabling AUX I2C bypass mode..."));
@@ -397,19 +393,22 @@ uint8_t MPU6050::dmpInitialize() {
 
     DEBUG_PRINTLN(F("Setting magnetometer mode to power-down..."));
     //mag -> setMode(0);
-    I2Cdev::writeByte(0x0E, 0x0A, 0x00);
+    I2Cdev::writeByte(0x0E, 0x0A, 0x00, wireObj);
 
     DEBUG_PRINTLN(F("Setting magnetometer mode to fuse access..."));
     //mag -> setMode(0x0F);
-    I2Cdev::writeByte(0x0E, 0x0A, 0x0F);
+    I2Cdev::writeByte(0x0E, 0x0A, 0x0F, wireObj);
 
     DEBUG_PRINTLN(F("Reading mag magnetometer factory calibration..."));
     int8_t asax, asay, asaz;
     //mag -> getAdjustment(&asax, &asay, &asaz);
-    I2Cdev::readBytes(0x0E, 0x10, 3, buffer);
+    I2Cdev::readBytes(0x0E, 0x10, 3, buffer, I2Cdev::readTimeout, wireObj);
     asax = (int8_t)buffer[0];
     asay = (int8_t)buffer[1];
     asaz = (int8_t)buffer[2];
+    (void)asax; // suppress unused variable compiler warning
+    (void)asay; // suppress unused variable compiler warning
+    (void)asaz; // suppress unused variable compiler warning
     DEBUG_PRINT(F("Adjustment X/Y/Z = "));
     DEBUG_PRINT(asax);
     DEBUG_PRINT(F(" / "));
@@ -419,7 +418,7 @@ uint8_t MPU6050::dmpInitialize() {
 
     DEBUG_PRINTLN(F("Setting magnetometer mode to power-down..."));
     //mag -> setMode(0);
-    I2Cdev::writeByte(0x0E, 0x0A, 0x00);
+    I2Cdev::writeByte(0x0E, 0x0A, 0x00, wireObj);
 
     // load DMP code into memory banks
     DEBUG_PRINT(F("Writing DMP code to MPU memory banks ("));
@@ -502,10 +501,10 @@ uint8_t MPU6050::dmpInitialize() {
             writeMemoryBlock(dmpUpdate + 3, dmpUpdate[2], dmpUpdate[0], dmpUpdate[1]);
 
             DEBUG_PRINTLN(F("Disabling all standby flags..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_PWR_MGMT_2, 0x00);
+            I2Cdev::writeByte(0x68, MPU6050_RA_PWR_MGMT_2, 0x00, wireObj);
 
             DEBUG_PRINTLN(F("Setting accelerometer sensitivity to +/- 2g..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_ACCEL_CONFIG, 0x00);
+            I2Cdev::writeByte(0x68, MPU6050_RA_ACCEL_CONFIG, 0x00, wireObj);
 
             DEBUG_PRINTLN(F("Setting motion detection threshold to 2..."));
             setMotionDetectionThreshold(2);
@@ -521,39 +520,39 @@ uint8_t MPU6050::dmpInitialize() {
 
             DEBUG_PRINTLN(F("Setting AK8975 to single measurement mode..."));
             //mag -> setMode(1);
-            I2Cdev::writeByte(0x0E, 0x0A, 0x01);
+            I2Cdev::writeByte(0x0E, 0x0A, 0x01, wireObj);
 
             // setup AK8975 (0x0E) as Slave 0 in read mode
             DEBUG_PRINTLN(F("Setting up AK8975 read slave 0..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV0_ADDR, 0x8E);
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV0_REG,  0x01);
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV0_CTRL, 0xDA);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV0_ADDR, 0x8E, wireObj);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV0_REG,  0x01, wireObj);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV0_CTRL, 0xDA, wireObj);
 
             // setup AK8975 (0x0E) as Slave 2 in write mode
             DEBUG_PRINTLN(F("Setting up AK8975 write slave 2..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_ADDR, 0x0E);
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_REG,  0x0A);
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_CTRL, 0x81);
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_DO,   0x01);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_ADDR, 0x0E, wireObj);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_REG,  0x0A, wireObj);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_CTRL, 0x81, wireObj);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV2_DO,   0x01, wireObj);
 
             // setup I2C timing/delay control
             DEBUG_PRINTLN(F("Setting up slave access delay..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV4_CTRL, 0x18);
-            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_MST_DELAY_CTRL, 0x05);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_SLV4_CTRL, 0x18, wireObj);
+            I2Cdev::writeByte(0x68, MPU6050_RA_I2C_MST_DELAY_CTRL, 0x05, wireObj);
 
             // enable interrupts
             DEBUG_PRINTLN(F("Enabling default interrupt behavior/no bypass..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_INT_PIN_CFG, 0x00);
+            I2Cdev::writeByte(0x68, MPU6050_RA_INT_PIN_CFG, 0x00, wireObj);
 
             // enable I2C master mode and reset DMP/FIFO
             DEBUG_PRINTLN(F("Enabling I2C master mode..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0x20);
+            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0x20, wireObj);
             DEBUG_PRINTLN(F("Resetting FIFO..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0x24);
+            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0x24, wireObj);
             DEBUG_PRINTLN(F("Rewriting I2C master mode enabled because...I don't know"));
-            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0x20);
+            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0x20, wireObj);
             DEBUG_PRINTLN(F("Enabling and resetting DMP/FIFO..."));
-            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0xE8);
+            I2Cdev::writeByte(0x68, MPU6050_RA_USER_CTRL, 0xE8, wireObj);
 
             DEBUG_PRINTLN(F("Writing final memory update 5/19 (function unknown)..."));
             for (j = 0; j < 4 || j < dmpUpdate[2] + 3; j++, pos++) dmpUpdate[j] = pgm_read_byte(&dmpUpdates[pos]);
@@ -608,7 +607,7 @@ uint8_t MPU6050::dmpInitialize() {
             DEBUG_PRINTLN(F("Waiting for FIRO count >= 46..."));
             while ((fifoCount = getFIFOCount()) < 46);
             DEBUG_PRINTLN(F("Reading FIFO..."));
-            getFIFOBytes(fifoBuffer, min(fifoCount, 128)); // safeguard only 128 bytes
+            getFIFOBytes(fifoBuffer, (fifoCount < 128) ? fifoCount : 128); // safeguard only 128 bytes
             DEBUG_PRINTLN(F("Reading interrupt status..."));
             getIntStatus();
 
@@ -619,13 +618,13 @@ uint8_t MPU6050::dmpInitialize() {
             DEBUG_PRINTLN(F("Waiting for FIRO count >= 48..."));
             while ((fifoCount = getFIFOCount()) < 48);
             DEBUG_PRINTLN(F("Reading FIFO..."));
-            getFIFOBytes(fifoBuffer, min(fifoCount, 128)); // safeguard only 128 bytes
+            getFIFOBytes(fifoBuffer, (fifoCount < 128) ? fifoCount : 128); // safeguard only 128 bytes
             DEBUG_PRINTLN(F("Reading interrupt status..."));
             getIntStatus();
             DEBUG_PRINTLN(F("Waiting for FIRO count >= 48..."));
             while ((fifoCount = getFIFOCount()) < 48);
             DEBUG_PRINTLN(F("Reading FIFO..."));
-            getFIFOBytes(fifoBuffer, min(fifoCount, 128)); // safeguard only 128 bytes
+            getFIFOBytes(fifoBuffer, (fifoCount < 128) ? fifoCount : 128); // safeguard only 128 bytes
             DEBUG_PRINTLN(F("Reading interrupt status..."));
             getIntStatus();
 
@@ -656,34 +655,34 @@ uint8_t MPU6050::dmpInitialize() {
     return 0; // success
 }
 
-bool MPU6050::dmpPacketAvailable() {
+bool MPU6050_9Axis_MotionApps41::dmpPacketAvailable() {
     return getFIFOCount() >= dmpGetFIFOPacketSize();
 }
 
-// uint8_t MPU6050::dmpSetFIFORate(uint8_t fifoRate);
-// uint8_t MPU6050::dmpGetFIFORate();
-// uint8_t MPU6050::dmpGetSampleStepSizeMS();
-// uint8_t MPU6050::dmpGetSampleFrequency();
-// int32_t MPU6050::dmpDecodeTemperature(int8_t tempReg);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSetFIFORate(uint8_t fifoRate);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetFIFORate();
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetSampleStepSizeMS();
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetSampleFrequency();
+// int32_t MPU6050_9Axis_MotionApps41::dmpDecodeTemperature(int8_t tempReg);
 
-//uint8_t MPU6050::dmpRegisterFIFORateProcess(inv_obj_func func, int16_t priority);
-//uint8_t MPU6050::dmpUnregisterFIFORateProcess(inv_obj_func func);
-//uint8_t MPU6050::dmpRunFIFORateProcesses();
+//uint8_t MPU6050_9Axis_MotionApps41::dmpRegisterFIFORateProcess(inv_obj_func func, int16_t priority);
+//uint8_t MPU6050_9Axis_MotionApps41::dmpUnregisterFIFORateProcess(inv_obj_func func);
+//uint8_t MPU6050_9Axis_MotionApps41::dmpRunFIFORateProcesses();
 
-// uint8_t MPU6050::dmpSendQuaternion(uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendGyro(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendAccel(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendLinearAccel(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendLinearAccelInWorld(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendControlData(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendSensorData(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendExternalSensorData(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendGravity(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendPacketNumber(uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendQuantizedAccel(uint_fast16_t elements, uint_fast16_t accuracy);
-// uint8_t MPU6050::dmpSendEIS(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendQuaternion(uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendGyro(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendAccel(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendLinearAccel(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendLinearAccelInWorld(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendControlData(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendSensorData(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendExternalSensorData(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendGravity(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendPacketNumber(uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendQuantizedAccel(uint_fast16_t elements, uint_fast16_t accuracy);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSendEIS(uint_fast16_t elements, uint_fast16_t accuracy);
 
-uint8_t MPU6050::dmpGetAccel(int32_t *data, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetAccel(int32_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = (((uint32_t)packet[34] << 24) | ((uint32_t)packet[35] << 16) | ((uint32_t)packet[36] << 8) | packet[37]);
@@ -691,7 +690,7 @@ uint8_t MPU6050::dmpGetAccel(int32_t *data, const uint8_t* packet) {
     data[2] = (((uint32_t)packet[42] << 24) | ((uint32_t)packet[43] << 16) | ((uint32_t)packet[44] << 8) | packet[45]);
     return 0;
 }
-uint8_t MPU6050::dmpGetAccel(int16_t *data, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetAccel(int16_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = (packet[34] << 8) | packet[35];
@@ -699,7 +698,7 @@ uint8_t MPU6050::dmpGetAccel(int16_t *data, const uint8_t* packet) {
     data[2] = (packet[42] << 8) | packet[43];
     return 0;
 }
-uint8_t MPU6050::dmpGetAccel(VectorInt16 *v, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetAccel(VectorInt16 *v, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     v -> x = (packet[34] << 8) | packet[35];
@@ -707,7 +706,7 @@ uint8_t MPU6050::dmpGetAccel(VectorInt16 *v, const uint8_t* packet) {
     v -> z = (packet[42] << 8) | packet[43];
     return 0;
 }
-uint8_t MPU6050::dmpGetQuaternion(int32_t *data, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetQuaternion(int32_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = (((uint32_t)packet[0] << 24) | ((uint32_t)packet[1] << 16) | ((uint32_t)packet[2] << 8) | packet[3]);
@@ -716,7 +715,7 @@ uint8_t MPU6050::dmpGetQuaternion(int32_t *data, const uint8_t* packet) {
     data[3] = (((uint32_t)packet[12] << 24) | ((uint32_t)packet[13] << 16) | ((uint32_t)packet[14] << 8) | packet[15]);
     return 0;
 }
-uint8_t MPU6050::dmpGetQuaternion(int16_t *data, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetQuaternion(int16_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = ((packet[0] << 8) | packet[1]);
@@ -725,7 +724,7 @@ uint8_t MPU6050::dmpGetQuaternion(int16_t *data, const uint8_t* packet) {
     data[3] = ((packet[12] << 8) | packet[13]);
     return 0;
 }
-uint8_t MPU6050::dmpGetQuaternion(Quaternion *q, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetQuaternion(Quaternion *q, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     int16_t qI[4];
     uint8_t status = dmpGetQuaternion(qI, packet);
@@ -738,9 +737,9 @@ uint8_t MPU6050::dmpGetQuaternion(Quaternion *q, const uint8_t* packet) {
     }
     return status; // int16 return value, indicates error if this line is reached
 }
-// uint8_t MPU6050::dmpGet6AxisQuaternion(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetRelativeQuaternion(long *data, const uint8_t* packet);
-uint8_t MPU6050::dmpGetGyro(int32_t *data, const uint8_t* packet) {
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGet6AxisQuaternion(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetRelativeQuaternion(long *data, const uint8_t* packet);
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetGyro(int32_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = (((uint32_t)packet[16] << 24) | ((uint32_t)packet[17] << 16) | ((uint32_t)packet[18] << 8) | packet[19]);
@@ -748,7 +747,7 @@ uint8_t MPU6050::dmpGetGyro(int32_t *data, const uint8_t* packet) {
     data[2] = (((uint32_t)packet[24] << 24) | ((uint32_t)packet[25] << 16) | ((uint32_t)packet[26] << 8) | packet[27]);
     return 0;
 }
-uint8_t MPU6050::dmpGetGyro(int16_t *data, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetGyro(int16_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = (packet[16] << 8) | packet[17];
@@ -756,7 +755,7 @@ uint8_t MPU6050::dmpGetGyro(int16_t *data, const uint8_t* packet) {
     data[2] = (packet[24] << 8) | packet[25];
     return 0;
 }
-uint8_t MPU6050::dmpGetMag(int16_t *data, const uint8_t* packet) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetMag(int16_t *data, const uint8_t* packet) {
     // TODO: accommodate different arrangements of sent data (ONLY default supported now)
     if (packet == 0) packet = dmpPacketBuffer;
     data[0] = (packet[28] << 8) | packet[29];
@@ -764,51 +763,51 @@ uint8_t MPU6050::dmpGetMag(int16_t *data, const uint8_t* packet) {
     data[2] = (packet[32] << 8) | packet[33];
     return 0;
 }
-// uint8_t MPU6050::dmpSetLinearAccelFilterCoefficient(float coef);
-// uint8_t MPU6050::dmpGetLinearAccel(long *data, const uint8_t* packet);
-uint8_t MPU6050::dmpGetLinearAccel(VectorInt16 *v, VectorInt16 *vRaw, VectorFloat *gravity) {
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSetLinearAccelFilterCoefficient(float coef);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetLinearAccel(long *data, const uint8_t* packet);
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetLinearAccel(VectorInt16 *v, VectorInt16 *vRaw, VectorFloat *gravity) {
     // get rid of the gravity component (+1g = +4096 in standard DMP FIFO packet)
     v -> x = vRaw -> x - gravity -> x*4096;
     v -> y = vRaw -> y - gravity -> y*4096;
     v -> z = vRaw -> z - gravity -> z*4096;
     return 0;
 }
-// uint8_t MPU6050::dmpGetLinearAccelInWorld(long *data, const uint8_t* packet);
-uint8_t MPU6050::dmpGetLinearAccelInWorld(VectorInt16 *v, VectorInt16 *vReal, Quaternion *q) {
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetLinearAccelInWorld(long *data, const uint8_t* packet);
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetLinearAccelInWorld(VectorInt16 *v, VectorInt16 *vReal, Quaternion *q) {
     // rotate measured 3D acceleration vector into original state
     // frame of reference based on orientation quaternion
     memcpy(v, vReal, sizeof(VectorInt16));
     v -> rotate(q);
     return 0;
 }
-// uint8_t MPU6050::dmpGetGyroAndAccelSensor(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetGyroSensor(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetControlData(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetTemperature(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetGravity(long *data, const uint8_t* packet);
-uint8_t MPU6050::dmpGetGravity(int16_t *data, const uint8_t* packet) {
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetGyroAndAccelSensor(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetGyroSensor(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetControlData(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetTemperature(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetGravity(long *data, const uint8_t* packet);
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetGravity(int16_t *data, const uint8_t* packet) {
     /* +1g corresponds to +8192, sensitivity is 2g. */
     int16_t qI[4];
     uint8_t status = dmpGetQuaternion(qI, packet);
     data[0] = ((int32_t)qI[1] * qI[3] - (int32_t)qI[0] * qI[2]) / 16384;
     data[1] = ((int32_t)qI[0] * qI[1] + (int32_t)qI[2] * qI[3]) / 16384;
     data[2] = ((int32_t)qI[0] * qI[0] - (int32_t)qI[1] * qI[1]
-	       - (int32_t)qI[2] * qI[2] + (int32_t)qI[3] * qI[3]) / (2 * 16384);
+	       - (int32_t)qI[2] * qI[2] + (int32_t)qI[3] * qI[3]) / (int32_t)(2 * 16384L);
     return status;
 }
 
-uint8_t MPU6050::dmpGetGravity(VectorFloat *v, Quaternion *q) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetGravity(VectorFloat *v, Quaternion *q) {
     v -> x = 2 * (q -> x*q -> z - q -> w*q -> y);
     v -> y = 2 * (q -> w*q -> x + q -> y*q -> z);
     v -> z = q -> w*q -> w - q -> x*q -> x - q -> y*q -> y + q -> z*q -> z;
     return 0;
 }
-// uint8_t MPU6050::dmpGetUnquantizedAccel(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetQuantizedAccel(long *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetExternalSensorData(long *data, int size, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetEIS(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetUnquantizedAccel(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetQuantizedAccel(long *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetExternalSensorData(long *data, int size, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetEIS(long *data, const uint8_t* packet);
 
-uint8_t MPU6050::dmpGetEuler(float *data, Quaternion *q) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetEuler(float *data, Quaternion *q) {
     data[0] = atan2(2*q -> x*q -> y - 2*q -> w*q -> z, 2*q -> w*q -> w + 2*q -> x*q -> x - 1);   // psi
     data[1] = -asin(2*q -> x*q -> z + 2*q -> w*q -> y);                              // theta
     data[2] = atan2(2*q -> y*q -> z - 2*q -> w*q -> x, 2*q -> w*q -> w + 2*q -> z*q -> z - 1);   // phi
@@ -816,7 +815,7 @@ uint8_t MPU6050::dmpGetEuler(float *data, Quaternion *q) {
 }
 
 #ifdef USE_OLD_DMPGETYAWPITCHROLL
-uint8_t MPU6050::dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
     // yaw: (about Z axis)
     data[0] = atan2(2*q -> x*q -> y - 2*q -> w*q -> z, 2*q -> w*q -> w + 2*q -> x*q -> x - 1);
     // pitch: (nose up/down, about Y axis)
@@ -826,7 +825,7 @@ uint8_t MPU6050::dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gra
     return 0;
 }
 #else 
-uint8_t MPU6050::dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gravity) {
     // yaw: (about Z axis)
     data[0] = atan2(2*q -> x*q -> y - 2*q -> w*q -> z, 2*q -> w*q -> w + 2*q -> x*q -> x - 1);
     // pitch: (nose up/down, about Y axis)
@@ -844,10 +843,11 @@ uint8_t MPU6050::dmpGetYawPitchRoll(float *data, Quaternion *q, VectorFloat *gra
 }
 #endif
 
-// uint8_t MPU6050::dmpGetAccelFloat(float *data, const uint8_t* packet);
-// uint8_t MPU6050::dmpGetQuaternionFloat(float *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetAccelFloat(float *data, const uint8_t* packet);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpGetQuaternionFloat(float *data, const uint8_t* packet);
 
-uint8_t MPU6050::dmpProcessFIFOPacket(const unsigned char *dmpData) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpProcessFIFOPacket(const unsigned char *dmpData) {
+    (void)dmpData; // suppress unused variable compiler warning
     /*for (uint8_t k = 0; k < dmpPacketSize; k++) {
         if (dmpData[k] < 0x10) Serial.print("0");
         Serial.print(dmpData[k], HEX);
@@ -857,7 +857,7 @@ uint8_t MPU6050::dmpProcessFIFOPacket(const unsigned char *dmpData) {
     //Serial.println((uint16_t)dmpPacketBuffer);
     return 0;
 }
-uint8_t MPU6050::dmpReadAndProcessFIFOPacket(uint8_t numPackets, uint8_t *processed) {
+uint8_t MPU6050_9Axis_MotionApps41::dmpReadAndProcessFIFOPacket(uint8_t numPackets, uint8_t *processed) {
     uint8_t status;
     uint8_t buf[dmpPacketSize];
     for (uint8_t i = 0; i < numPackets; i++) {
@@ -868,22 +868,20 @@ uint8_t MPU6050::dmpReadAndProcessFIFOPacket(uint8_t numPackets, uint8_t *proces
         if ((status = dmpProcessFIFOPacket(buf)) > 0) return status;
         
         // increment external process count variable, if supplied
-        if (processed != 0) *processed++;
+        if (processed != 0) (*processed)++;
     }
     return 0;
 }
 
-// uint8_t MPU6050::dmpSetFIFOProcessedCallback(void (*func) (void));
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSetFIFOProcessedCallback(void (*func) (void));
 
-// uint8_t MPU6050::dmpInitFIFOParam();
-// uint8_t MPU6050::dmpCloseFIFO();
-// uint8_t MPU6050::dmpSetGyroDataSource(uint_fast8_t source);
-// uint8_t MPU6050::dmpDecodeQuantizedAccel();
-// uint32_t MPU6050::dmpGetGyroSumOfSquare();
-// uint32_t MPU6050::dmpGetAccelSumOfSquare();
-// void MPU6050::dmpOverrideQuaternion(long *q);
-uint16_t MPU6050::dmpGetFIFOPacketSize() {
+// uint8_t MPU6050_9Axis_MotionApps41::dmpInitFIFOParam();
+// uint8_t MPU6050_9Axis_MotionApps41::dmpCloseFIFO();
+// uint8_t MPU6050_9Axis_MotionApps41::dmpSetGyroDataSource(uint_fast8_t source);
+// uint8_t MPU6050_9Axis_MotionApps41::dmpDecodeQuantizedAccel();
+// uint32_t MPU6050_9Axis_MotionApps41::dmpGetGyroSumOfSquare();
+// uint32_t MPU6050_9Axis_MotionApps41::dmpGetAccelSumOfSquare();
+// void MPU6050_9Axis_MotionApps41::dmpOverrideQuaternion(long *q);
+uint16_t MPU6050_9Axis_MotionApps41::dmpGetFIFOPacketSize() {
     return dmpPacketSize;
 }
-
-#endif /* _MPU6050_9AXIS_MOTIONAPPS41_H_ */
