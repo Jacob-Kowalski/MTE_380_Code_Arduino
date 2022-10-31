@@ -1,0 +1,60 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/include",
+                "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/src",
+                "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/lib/MPU6050",
+                "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/.pio/libdeps/megaatmega2560/I2Cdevlib-Core",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/cores/arduino",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/variants/mega",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/include",
+                    "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/src",
+                    "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/lib/MPU6050",
+                    "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/.pio/libdeps/megaatmega2560/I2Cdevlib-Core",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/cores/arduino",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/variants/mega",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                    "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=60104",
+                "ARDUINO_AVR_MEGA2560",
+                "F_CPU=16000000L",
+                "ARDUINO_ARCH_AVR",
+                "ARDUINO=10808",
+                "__AVR_ATmega2560__",
+                ""
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "compilerPath": "/Users/ethanlee/.platformio/packages/toolchain-atmelavr/bin/avr-gcc",
+            "compilerArgs": [
+                "-mmcu=atmega2560",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}
