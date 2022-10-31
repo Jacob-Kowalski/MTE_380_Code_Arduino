@@ -1,9 +1,77 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#include "sensors/gyro/gyro.h"
+// #include "sensors/gyro/gyro.h"
 #include "sensors/ultrasonic/ultrasonic.h"
 #include "motors/motors.h"
+#include <MPU6050_6Axis_MotionApps20.h>
+
+// =====================================================
+// ===               Gyro stuff                      ===
+// =====================================================
+
+MPU6050 mpu_;
+uint16_t imu_packetsize_;
+float ypr[3]; // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+
+bool gyroInit()
+{
+  uint8_t devStatus = mpu_.dmpInitialize();
+
+  mpu_.CalibrateAccel(6);
+  mpu_.CalibrateGyro(6);
+
+  // make sure it worked (returns 0 if so)
+  if (devStatus == 0)
+  {
+    mpu_.setDMPEnabled(true);
+
+    // get expected DMP packet size for later comparison
+    imu_packetsize_ = mpu_.dmpGetFIFOPacketSize();
+  }
+  else
+  {
+    // ERROR!
+    // 1 = initial memory load failed
+    // 2 = DMP configuration updates failed
+    // (if it's going to break, usually the code will be 1)
+    Serial.println("DMP Initialization failed (code ");
+    Serial.print(devStatus);
+    Serial.print(")");
+    return false;
+  }
+
+  return true;
+}
+
+void gyroReadData()
+{
+  uint8_t fifoBuffer[64]; // FIFO storage buffer
+  Quaternion q;           // [w, x, y, z]         quaternion container
+  VectorFloat gravity;    // [x, y, z]            gravity vector
+
+  if (mpu_.dmpGetCurrentFIFOPacket(fifoBuffer))
+  {
+    mpu_.dmpGetQuaternion(&q, fifoBuffer);
+    mpu_.dmpGetGravity(&gravity, &q);
+    mpu_.dmpGetYawPitchRoll(ypr, &q, &gravity);
+  }
+}
+
+float gyroGetYaw()
+{
+  return ypr[0] * 180 / M_PI;
+}
+
+float gyroGetPitch()
+{
+  return ypr[1] * 180 / M_PI;
+}
+
+float gyroGetRoll()
+{
+  return ypr[2] * 180 / M_PI;
+}
 
 // =====================================================
 // ===               Global Variables                ===
@@ -47,7 +115,6 @@ bool pitTrap = 0;
 int angleCount = 0;
 
 // Initialize Sensor objects
-Gyro mpu;
 Ultrasonic ultrasonicFront('f');
 Ultrasonic ultrasonicSide('s');
 
@@ -81,7 +148,7 @@ void setup()
   motors.init();
   ultrasonicFront.init();
   ultrasonicSide.init();
-  mpu.init();
+  gyroInit();
 
   delay(2000);
 
@@ -183,7 +250,7 @@ int getFrontDistance()
 
 void updateAngles()
 {
-  mpu.readData();
+  gyroReadData();
 }
 
 void initiateTurn()
@@ -211,10 +278,10 @@ void turn()
   motors.adjust(150, 255 + 150);
 
   // float angle = 90 * (((turns) % 4) + 1) - 185;
-  float initialAngle = mpu.getYaw();
+  float initialAngle = gyroGetYaw();
 
   // while (ypr[0] * 180 / M_PI < angle || angle - ypr[0] * 180 / M_PI < -40)
-  while (abs(abs(initialAngle) - abs(mpu.getYaw())) < 80)
+  while (abs(abs(initialAngle) - abs(gyroGetYaw())) < 80)
   {
     updateAngles();
   }
@@ -224,8 +291,8 @@ void turn()
 
 void checkPitTrap()
 {
-  if (mpu.getPitch() < -10)
+  if (gyroGetPitch() < -10)
     pitTrap = true;
-  if (mpu.getPitch() > 10 && pitTrap)
+  if (gyroGetPitch() > 10 && pitTrap)
     pitTrap = false;
 }
