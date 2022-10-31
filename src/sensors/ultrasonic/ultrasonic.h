@@ -1,7 +1,8 @@
 #ifndef ULTRASONIC_H
 #define ULTRASONIC_H
 
-#define UTRASONIC_POWER 50
+#define UTRASONIC_POWER_FRONT 48
+#define UTRASONIC_POWER_SIDE 49
 
 // Echo and trigger pins for ultrasonic sensor
 #define TRIGGER_FRONT 12
@@ -13,7 +14,7 @@ class Ultrasonic
 {
 public:
     char position;
-    Ultrasonic(char position);
+    Ultrasonic(char pos);
     void init();
     int readDistance();
 };

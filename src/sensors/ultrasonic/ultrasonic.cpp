@@ -1,9 +1,9 @@
 #include "ultrasonic.h"
 #include <Arduino.h>
 
-Ultrasonic::Ultrasonic(char position)
+Ultrasonic::Ultrasonic(char pos)
 {
-    position = position;
+    position = pos;
 }
 
 void Ultrasonic::init()
@@ -11,17 +11,20 @@ void Ultrasonic::init()
     switch (position)
     {
     case 'f':
+        pinMode(UTRASONIC_POWER_FRONT, OUTPUT);
+        delay(100);
         pinMode(TRIGGER_FRONT, OUTPUT);
         pinMode(ECHO_FRONT, INPUT);
         digitalWrite(TRIGGER_FRONT, LOW);
+        digitalWrite(UTRASONIC_POWER_FRONT, HIGH);
         break;
     case 's':
-        pinMode(UTRASONIC_POWER, OUTPUT);
+        pinMode(UTRASONIC_POWER_SIDE, OUTPUT);
         delay(100);
         pinMode(TRIGGER_SIDE, OUTPUT);
         pinMode(ECHO_SIDE, INPUT);
         digitalWrite(TRIGGER_SIDE, LOW);
-        digitalWrite(UTRASONIC_POWER, HIGH);
+        digitalWrite(UTRASONIC_POWER_SIDE, HIGH);
         break;
     }
 }
