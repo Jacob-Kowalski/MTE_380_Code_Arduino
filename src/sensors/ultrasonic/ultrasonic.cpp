@@ -31,21 +31,35 @@ void Ultrasonic::init()
 
 int Ultrasonic::readDistance()
 {
-    double duration = 0;
+    if (millis() - lastReadTime <= SAMPLING_RATE)
+    {
+        delay(SAMPLING_RATE - (millis() - lastReadTime));
+    }
+    double distance = 0;
     switch (position)
     {
     case 'f':
         digitalWrite(TRIGGER_FRONT, HIGH);
         delayMicroseconds(10);
         digitalWrite(TRIGGER_FRONT, LOW);
-        duration = pulseIn(ECHO_FRONT, HIGH);
+        distance = pulseIn(ECHO_FRONT, HIGH) / 58.0 * 10;
         break;
     case 's':
         digitalWrite(TRIGGER_SIDE, HIGH);
         delayMicroseconds(10);
         digitalWrite(TRIGGER_SIDE, LOW);
-        duration = pulseIn(ECHO_SIDE, HIGH);
+        distance = pulseIn(ECHO_SIDE, HIGH) / 58.0 * 10;
         break;
     }
-    return (duration / 58.0 * 10);
+
+    // Clamp sudden changes that are caused by sensor noise
+    if (abs(distance - prevDistReading) > SUDDEN_CHANGE_CLAMP && !firstReading)
+    {
+        distance = prevDistReading;
+    }
+
+    firstReading = false;
+    prevDistReading = distance;
+
+    return distance;
 }

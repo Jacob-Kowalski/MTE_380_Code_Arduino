@@ -10,6 +10,9 @@
 #define TRIGGER_SIDE 10
 #define ECHO_SIDE 11
 
+#define SAMPLING_RATE 25 // ms
+#define SUDDEN_CHANGE_CLAMP 600
+
 class Ultrasonic
 {
 public:
@@ -17,6 +20,11 @@ public:
     Ultrasonic(char pos);
     void init();
     int readDistance();
+
+private:
+    uint32_t lastReadTime = 0;
+    int prevDistReading;
+    bool firstReading = true;
 };
 
 #endif

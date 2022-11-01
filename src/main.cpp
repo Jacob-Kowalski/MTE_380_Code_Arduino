@@ -30,12 +30,6 @@ int sideWallLimit = 100;
 int sideDistance = 0;
 int frontDistance = 0;
 
-int previousSideDistance = 50;
-bool firstReading = true;
-
-// for ensuring sampling rate
-uint32_t frontSensorTime = 0;
-uint32_t sideSensorTime = 0;
 bool inPitTrap = false;
 
 // Initialize Sensor objects
@@ -50,17 +44,6 @@ Motors motors;
 PID courseCorrection(-140, 140, 2, 100, 0);
 PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 2.5, 0.5, 0);
 PID turnCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 5, 100, 0);
-
-// ========================================================
-// ===               Function Prototypes                ===
-// ========================================================
-
-int getSideDistance();
-int getFrontDistance();
-void updateAngles();
-void initiateTurn();
-void turn();
-void checkPitTrap();
 
 // ========================================================
 // ===                     Setup                        ===
@@ -96,8 +79,8 @@ void loop()
   }
   else
   {
-    sideDistance = getSideDistance();
-    frontDistance = getFrontDistance();
+    sideDistance = ultrasonicSide.readDistance();
+    frontDistance = ultrasonicFront.readDistance();
     updateAngles();
     checkPitTrap();
 
@@ -113,40 +96,17 @@ void loop()
 }
 
 // ========================================================
-// ===                Helper Functions                  ===
+// ===               Function Prototypes                ===
 // ========================================================
 
-int getSideDistance()
-{
-  // checking delay time for max sensor
-  if (millis() - sideSensorTime <= 25)
-  {
-    delay(25 - (millis() - sideSensorTime));
-  }
-  previousSideDistance = sideDistance;
-  sideSensorTime = millis();
-  int distance = ultrasonicSide.readDistance();
+void updateAngles();
+void initiateTurn();
+void turn();
+void checkPitTrap();
 
-  // If difference between readings is too high, dismiss reading
-  if (abs(distance - sideDistance) > 600 && !firstReading)
-  {
-    distance = sideDistance;
-  }
-  firstReading = false;
-  return distance;
-}
-
-int getFrontDistance()
-{
-  // checking delay time for max sensor
-  if (millis() - frontSensorTime <= 25)
-  {
-    delay(25 - (millis() - frontSensorTime));
-  }
-  frontSensorTime = millis();
-  int distance = ultrasonicFront.readDistance();
-  return distance;
-}
+// ========================================================
+// ===              Function Definitions                ===
+// ========================================================
 
 void updateAngles()
 {
@@ -159,7 +119,6 @@ void initiateTurn()
   sideWallLimit = 30 + floor((turns - 1) / 4) * 300;
   frontWallLimit = 100 + floor(turns / 4) * 300;
   turns++;
-  // Serial.print(turns);
   if ((turns - 1) == 11)
   {
     // shut off motors
