@@ -5,6 +5,7 @@
 #include "sensors/ultrasonic/ultrasonic.h"
 #include "motors/motors.h"
 
+#include "pid/PID.h"
 // =====================================================
 // ===               Global Constants                ===
 // =====================================================
@@ -20,33 +21,22 @@ const int MOTOR_MIN_SPEED = 115;
 
 int turns = 1;
 bool doneCourse = false;
-int maxSpeed = 255;
 
 // the wanted distances from each wall in mm
-int frontWallLimit = 250;
+int frontWallLimit = 150;
 int sideWallLimit = 100;
 
-// Current measurements
+// Current ultrasonic measurements
 int sideDistance = 0;
 int frontDistance = 0;
+
 int previousSideDistance = 50;
 bool firstReading = true;
-
-double error = 0;
-double previousError = 0;
-double previousIntegralError;
-double PIDCorrection = 0;
-double correction = 0;
-// times for PID
-double currentTime = 0;
-double previousTime = 0;
 
 // for ensuring sampling rate
 uint32_t frontSensorTime = 0;
 uint32_t sideSensorTime = 0;
 bool inPitTrap = false;
-
-int angleCount = 0;
 
 // Initialize Sensor objects
 Gyro mpu;
@@ -56,13 +46,18 @@ Ultrasonic ultrasonicSide('s');
 // Initialize Motor object
 Motors motors;
 
+// PID Controllers
+PID courseCorrection(-140, 140, 2, 100, 0);
+PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 2.5, 0.5, 0);
+PID turnCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 5, 100, 0);
+
 // ========================================================
 // ===               Function Prototypes                ===
 // ========================================================
 
-double courseCorrectionPID();
+double courseCorrectionPID(double, double, double);
 double turnCorrectionPID(double, double, double);
-double turnCorrectionPID();
+double stopCorrectionPID(double, double, double);
 int getSideDistance();
 int getFrontDistance();
 void updateAngles();
@@ -89,7 +84,7 @@ void setup()
 
   delay(2000);
 
-  motors.adjust(maxSpeed, 0);
+  motors.adjust(MOTOR_MAX_SPEED, 0);
 }
 
 // ========================================================
@@ -107,7 +102,6 @@ void loop()
     sideDistance = getSideDistance();
     frontDistance = getFrontDistance();
     updateAngles();
-
     checkPitTrap();
 
     if (frontDistance <= 200 && !inPitTrap) // frontWallLimit)
@@ -116,7 +110,7 @@ void loop()
     }
     else // if (error >= 5)
     {
-      motors.adjust(maxSpeed, courseCorrectionPID());
+      motors.adjust(stopCorrection.calculate(frontDistance, frontWallLimit), courseCorrection.calculate(sideWallLimit, sideDistance));
     }
   }
 }
@@ -124,66 +118,6 @@ void loop()
 // ========================================================
 // ===                Helper Functions                  ===
 // ========================================================
-
-double courseCorrectionPID()
-{
-
-  currentTime = micros();
-
-  // error is negative when far away from wall
-  error = double(sideWallLimit - sideDistance);
-  // 1000000 is for seconds can be changes for a nice KD
-  double rateError = (error - previousError) * 1000000.0 / (currentTime - previousTime);
-  // double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
-  correction = KP * error + KD * rateError;
-
-  previousError = error;
-  previousTime = currentTime;
-  // previousIntegralError = integralError;
-  // if (correction > 0)
-  // {
-  //   correction = correction * 5;
-  // }
-  if (abs(correction) > 140)
-  {
-    correction = (correction > 0) ? 140 : -140;
-  }
-
-  return correction;
-}
-
-double turnCorrectionPID(float &angleTurned, double &previousError, double &previousTime)
-{
-  //  Tested values on hard plastic floor
-  double KP = 5000 / 1000;
-  double KD = 100000 / 1000;
-
-  double currentTime = micros();
-
-  double error = 90 - angleTurned;
-  double rateError = (error - previousError) * 1000000.0 / (currentTime - previousTime); // 1000000 is for seconds can be changes for a nice KD
-  // double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
-  correction = KP * error + KD * rateError;
-
-  previousError = error;
-  previousTime = currentTime;
-  if (abs(correction) > MOTOR_MAX_SPEED)
-  {
-    correction = MOTOR_MAX_SPEED;
-  }
-  if (abs(correction) < MOTOR_MIN_SPEED)
-  {
-    correction = MOTOR_MIN_SPEED;
-  }
-  return correction;
-}
-
-  if (abs(correction) < 115)
-  {
-    correction = 115;
-  }
-  return correction;
-}
 
 int getSideDistance()
 {
@@ -242,16 +176,13 @@ void initiateTurn()
 
 void turn()
 {
-  double previousError = 0;
-  double previousTime = 0;
-
   double prevAngle = 0;
   double currAngle = mpu.getYaw();
   double angleTurned = 0;
 
   while (angleTurned < 90) // Upper bound should be adjusted alongside turnCorrectionPID
   {
-    motors.adjust(turnCorrectionPID(angleTurned, previousError, previousTime), 510);
+    motors.adjust(turnCorrection.calculate(90, angleTurned), 510);
     updateAngles();
     currAngle = mpu.getYaw();
     angleTurned += abs(currAngle - prevAngle);
