@@ -37,7 +37,7 @@ double previousTime = 0;
 // for ensuring sampling rate
 uint32_t frontSensorTime = 0;
 uint32_t sideSensorTime = 0;
-bool pitTrap = 0;
+bool inPitTrap = false;
 
 int angleCount = 0;
 
@@ -103,7 +103,7 @@ void loop()
 
     checkPitTrap();
 
-    if (frontDistance <= 200 && !pitTrap) // frontWallLimit)
+    if (frontDistance <= 200 && !inPitTrap) // frontWallLimit)
     {
       initiateTurn();
     }
@@ -257,7 +257,7 @@ void turn()
 void checkPitTrap()
 {
   if (mpu.getPitch() < -10)
-    pitTrap = true;
-  if (mpu.getPitch() > 10 && pitTrap)
-    pitTrap = false;
+    inPitTrap = true;
+  if (mpu.getPitch() > 10 && inPitTrap)
+    inPitTrap = false;
 }
