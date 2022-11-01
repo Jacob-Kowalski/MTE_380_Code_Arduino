@@ -55,9 +55,6 @@ PID turnCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 5, 100, 0);
 // ===               Function Prototypes                ===
 // ========================================================
 
-double courseCorrectionPID(double, double, double);
-double turnCorrectionPID(double, double, double);
-double stopCorrectionPID(double, double, double);
 int getSideDistance();
 int getFrontDistance();
 void updateAngles();
