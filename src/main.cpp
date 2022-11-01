@@ -24,15 +24,6 @@ int sideDistance = 0;
 int frontDistance = 0;
 int previousSideDistance = 50;
 bool firstReading = true;
-float currAngle = 0;
-
-// The errors for PID
-double KP = 2000.0 / 1000.0;
-double KD = 100000.0 / 1000.0;
-double KI = 0 / 1000;
-// Tested values on hard plastic
-double KPA = 5000 / 1000;
-double KDA = 100000 / 1000;
 
 double error = 0;
 double previousError = 0;
@@ -63,6 +54,7 @@ Motors motors;
 // ========================================================
 
 double courseCorrectionPID();
+double turnCorrectionPID(double, double, double);
 double turnCorrectionPID();
 int getSideDistance();
 int getFrontDistance();
@@ -153,24 +145,31 @@ double courseCorrectionPID()
   return correction;
 }
 
-double turnCorrectionPID()
+double turnCorrectionPID(float &angleTurned, double &previousError, double &previousTime)
 {
+  //  Tested values on hard plastic floor
+  double KP = 5000 / 1000;
+  double KD = 100000 / 1000;
 
-  currentTime = micros();
+  double currentTime = micros();
 
-  // error is negative when far away from wall
-  error = double(90 - currAngle);
-  // 1000000 is for seconds can be changes for a nice KD
-  double rateError = (error - previousError) * 1000000.0 / (currentTime - previousTime);
+  double error = 90 - angleTurned;
+  double rateError = (error - previousError) * 1000000.0 / (currentTime - previousTime); // 1000000 is for seconds can be changes for a nice KD
   // double integralError = (error) * (currentTime - previousTime) / 1000000 + previousIntegralError;
-  correction = KPA * error + KDA * rateError;
+  correction = KP * error + KD * rateError;
 
   previousError = error;
   previousTime = currentTime;
-  if (abs(correction) > 255)
+  if (abs(correction) > MOTOR_MAX_SPEED)
   {
-    correction = 255;
+    correction = MOTOR_MAX_SPEED;
   }
+  if (abs(correction) < MOTOR_MIN_SPEED)
+  {
+    correction = MOTOR_MIN_SPEED;
+  }
+  return correction;
+}
 
   if (abs(correction) < 115)
   {
@@ -225,7 +224,6 @@ void initiateTurn()
   // Serial.print(turns);
   if ((turns - 1) == 11)
   {
-    Serial.print("Course completed");
     // shut off motors
     doneCourse = true;
   }
@@ -237,27 +235,23 @@ void initiateTurn()
 
 void turn()
 {
-  // motor turns
-  previousError = 0;
-  // float angle = 90 * (((turns) % 4) + 1) - 185;
+  double previousError = 0;
+  double previousTime = 0;
 
-  double prevangle = mpu.getYaw();
-  double angle = prevangle;
-  motors.adjust(255, 255 + 255);
-  // double correction = 100;
-  // while (ypr[0] * 180 / M_PI < angle || angle - ypr[0] * 180 / M_PI < -40)
-  // while (abs(abs(initialAngle) - abs(mpu.getYaw())) < 80)
-  while (currAngle < 85)
+  double prevAngle = 0;
+  double currAngle = mpu.getYaw();
+  double angleTurned = 0;
+
+  while (angleTurned < 90) // Upper bound should be adjusted alongside turnCorrectionPID
   {
-    motors.adjust(turnCorrectionPID(), 510);
+    motors.adjust(turnCorrectionPID(angleTurned, previousError, previousTime), 510);
     updateAngles();
-    angle = mpu.getYaw();
-    currAngle += abs(angle - prevangle);
-    prevangle = angle;
+    currAngle = mpu.getYaw();
+    angleTurned += abs(currAngle - prevAngle);
+    prevAngle = currAngle;
   }
-  previousError = 0;
+  // Stop motors after completing turn
   motors.adjust(0, 0);
-  currAngle = 0;
 }
 
 void checkPitTrap()
