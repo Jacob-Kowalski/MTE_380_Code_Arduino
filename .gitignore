@@ -3,3 +3,5 @@
 .clang_complete
 .gcc-flags.json
 .pio
+.DS_Store
+src/.DS_Store
