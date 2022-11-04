@@ -53,10 +53,10 @@ int Ultrasonic::readDistance()
     }
 
     // Clamp sudden changes that are caused by sensor noise
-    if (abs(distance - prevDistReading) > SUDDEN_CHANGE_CLAMP && !firstReading)
-    {
-        distance = prevDistReading;
-    }
+    // if (abs(distance - prevDistReading) > SUDDEN_CHANGE_CLAMP && !firstReading)
+    // {
+    //     distance = prevDistReading;
+    // }
 
     firstReading = false;
     prevDistReading = distance;

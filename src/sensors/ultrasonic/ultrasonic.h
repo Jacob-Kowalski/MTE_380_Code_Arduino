@@ -11,7 +11,7 @@
 #define ECHO_SIDE 11
 
 #define SAMPLING_RATE 25 // ms
-#define SUDDEN_CHANGE_CLAMP 600
+#define SUDDEN_CHANGE_CLAMP 6000
 
 class Ultrasonic
 {
@@ -20,11 +20,11 @@ public:
     Ultrasonic(char pos);
     void init();
     int readDistance();
+    bool firstReading = true;
 
 private:
-    uint32_t lastReadTime = 0;
+    unsigned long lastReadTime = 0;
     int prevDistReading;
-    bool firstReading = true;
 };
 
 #endif
