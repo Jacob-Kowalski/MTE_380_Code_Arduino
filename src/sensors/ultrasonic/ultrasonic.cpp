@@ -52,6 +52,12 @@ int Ultrasonic::readDistance()
         break;
     }
 
+    // Clamp Sensor noise
+    if (distance > NOISE_CLAMP)
+    {
+        distance = prevDistReading;
+    }
+
     // Clamp sudden changes that are caused by sensor noise
     // if (abs(distance - prevDistReading) > SUDDEN_CHANGE_CLAMP && !firstReading)
     // {
@@ -61,5 +67,17 @@ int Ultrasonic::readDistance()
     firstReading = false;
     prevDistReading = distance;
 
+    // The below code outputs the filtered code.
+    distance = kalmanFilter(distance);
+
     return distance;
+}
+
+// The below is an implementation for the kalman filter for side sensor
+double Ultrasonic::kalmanFilter(double U)
+{
+    K = P * H / (H * P * H + R);
+    U_hat += +K * (U - H * U_hat);
+    P = (1 - K * H) * P + Q;
+    return U_hat;
 }

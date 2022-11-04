@@ -11,7 +11,12 @@
 #define ECHO_SIDE 11
 
 #define SAMPLING_RATE 25 // ms
-#define SUDDEN_CHANGE_CLAMP 6000
+#define SUDDEN_CHANGE_CLAMP 600
+#define NOISE_CLAMP 1000
+
+// Kalaman constants:
+#define R 40
+#define H 1
 
 class Ultrasonic
 {
@@ -20,11 +25,18 @@ public:
     Ultrasonic(char pos);
     void init();
     int readDistance();
+    double kalmanFilter(double U);
     bool firstReading = true;
 
 private:
     unsigned long lastReadTime = 0;
     int prevDistReading;
+
+    // Kalman vars
+    double Q = 10;
+    double P = 0;
+    double U_hat = 0;
+    double K = 0;
 };
 
 #endif
