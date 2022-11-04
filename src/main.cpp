@@ -65,8 +65,7 @@ void setup()
 {
   Serial.begin(115200);
   while (!Serial)
-  {
-  }
+    ;
 
   // Initialize motors/ultrasonic/gyro
   motors.init();

@@ -15,6 +15,7 @@
                 "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
                 "/Users/ethanlee/.platformio/packages/framework-arduino-avr/cores/arduino",
                 "/Users/ethanlee/.platformio/packages/framework-arduino-avr/variants/mega",
+                "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/lib/Adafruit_VL53L0X",
                 "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
                 "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/HID/src",
                 "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
@@ -31,6 +32,7 @@
                     "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
                     "/Users/ethanlee/.platformio/packages/framework-arduino-avr/cores/arduino",
                     "/Users/ethanlee/.platformio/packages/framework-arduino-avr/variants/mega",
+                    "/Users/ethanlee/Documents/GitHub/MTE_380_Code_Arduino/lib/Adafruit_VL53L0X",
                     "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
                     "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/HID/src",
                     "/Users/ethanlee/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
@@ -39,7 +41,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=60104",
+                "PLATFORMIO=60105",
                 "ARDUINO_AVR_MEGA2560",
                 "F_CPU=16000000L",
                 "ARDUINO_ARCH_AVR",
