@@ -12,7 +12,7 @@
 
 #define SAMPLING_RATE 25 // ms
 #define SUDDEN_CHANGE_CLAMP 600
-#define NOISE_CLAMP 1000
+#define NOISE_CLAMP 10000
 
 // Kalaman constants:
 #define R 40
