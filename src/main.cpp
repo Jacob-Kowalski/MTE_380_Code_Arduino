@@ -170,9 +170,9 @@ void turn()
 
 void checkPitTrap()
 {
-  if (mpu.getPitch() < -8)
+  if (mpu.getPitch() > 5)
     inPitTrap = true;
-  if (mpu.getPitch() > 8 && inPitTrap)
+  if (mpu.getPitch() < -5 && inPitTrap)
     inPitTrap = false;
 }
 
