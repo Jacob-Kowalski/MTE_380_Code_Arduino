@@ -56,6 +56,7 @@ void updateAngles();
 void initiateTurn();
 void turn();
 void checkPitTrap();
+void stabilizeKalmanFilter();
 
 // ========================================================
 // ===                     Setup                        ===
@@ -72,6 +73,8 @@ void setup()
   ultrasonicFront.init();
   ultrasonicSide.init();
   mpu.init();
+
+  stabilizeKalmanFilter();
 
   delay(2000);
 
@@ -171,4 +174,14 @@ void checkPitTrap()
     inPitTrap = true;
   if (mpu.getPitch() > 8 && inPitTrap)
     inPitTrap = false;
+}
+
+void stabilizeKalmanFilter()
+{
+  for (int i = 0; i < 10; i++)
+  {
+    frontDistance = ultrasonicFront.readDistance();
+    sideDistance = ultrasonicSide.readDistance();
+    delay(25);
+  }
 }
