@@ -12,6 +12,7 @@
 
 const int MOTOR_MAX_SPEED = 255;
 const int MOTOR_MIN_SPEED = 115;
+const int TILE_LENGTH = 300; // mm
 
 // =====================================================
 // ===               Global Variables                ===
@@ -19,21 +20,20 @@ const int MOTOR_MIN_SPEED = 115;
 
 // all units in mm
 
-int turns = 1;
+int turns = 0;
 bool doneCourse = false;
 
 // the wanted distances from each wall in mm
-int frontWallLimit = 100;
-int sideWallLimit = 100;
+int frontWallLimit = 170;
+int sideWallLimit = 110;
 
 // Current ultrasonic measurements
-int sideDistance = 0;
-int frontDistance = 0;
+int sideDistance, frontDistance = 0;
 
 bool inPitTrap = false;
 
-int linearInertia = 80;
-int rotationalInertia = 11; // degrees
+int linearInertia = 110;
+int rotationalInertia = 12; // degrees
 
 // Initialize Sensor objects
 Gyro mpu;
@@ -56,7 +56,7 @@ void updateAngles();
 void initiateTurn();
 void turn();
 void checkPitTrap();
-void stabilizeKalmanFilter();
+void stabilizeKalmanFilter(int readCount);
 
 // ========================================================
 // ===                     Setup                        ===
@@ -74,7 +74,7 @@ void setup()
   ultrasonicSide.init();
   mpu.init();
 
-  stabilizeKalmanFilter();
+  stabilizeKalmanFilter(10);
 
   delay(2000);
 
@@ -122,12 +122,20 @@ void updateAngles()
 void initiateTurn()
 {
   // Adjust set Point and turning distance based on number of turns made
-  sideWallLimit = 100 + floor((turns - 1) / 4) * 300;
-  frontWallLimit = 100 + floor(turns / 4) * 300;
-  turns++;
-  if ((turns - 1) == 11)
+  // sideWallLimit = 100 + floor((turns - 1) / 4) * 300;
+  // frontWallLimit = 200 + floor((turns + 1) / 4) * 300;
+
+  if (turns == 2 || turns == 6)
   {
-    // shut off motors
+    frontWallLimit = TILE_LENGTH + frontWallLimit - turns * 20;
+  }
+  if (turns == 3 || turns == 7)
+  {
+    sideWallLimit = TILE_LENGTH + sideWallLimit;
+  }
+
+  if ((turns) == 10)
+  {
     doneCourse = true;
   }
   else
@@ -151,9 +159,11 @@ void turn()
     motors.adjust(turnCorrection.calculate(90 - rotationalInertia, angleTurned), 510);
     updateAngles();
     currAngle = mpu.getYaw();
-    angleTurned += abs(currAngle - prevAngle);
+    angleTurned += abs(abs(currAngle) - abs(prevAngle));
     prevAngle = currAngle;
   }
+
+  turns++;
 
   courseCorrection.prevError = 0;
   stopCorrection.prevError = 0;
@@ -165,20 +175,27 @@ void turn()
   ultrasonicFront.firstReading = true;
 
   // Stop motors after completing turn
-  motors.adjust(255, 0);
+  motors.adjust(0, 0);
+  stabilizeKalmanFilter(20);
+  motors.adjust(MOTOR_MAX_SPEED, 0);
 }
 
 void checkPitTrap()
 {
-  if (mpu.getPitch() > 5)
-    inPitTrap = true;
-  if (mpu.getPitch() < -5 && inPitTrap)
+  double angle = mpu.getPitch();
+  if (abs(angle) < 4)
+  {
     inPitTrap = false;
+  }
+  else
+  {
+    inPitTrap = true;
+  }
 }
 
-void stabilizeKalmanFilter()
+void stabilizeKalmanFilter(int readCount)
 {
-  for (int i = 0; i < 10; i++)
+  for (int i = 0; i < readCount; i++)
   {
     frontDistance = ultrasonicFront.readDistance();
     sideDistance = ultrasonicSide.readDistance();
