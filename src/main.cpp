@@ -51,6 +51,9 @@ PID courseCorrection(-140, 140, 6, 100, 0);
 PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 2.5, 0.5, 0);
 PID turnCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 5, 100, 0);
 
+// Test number that dictates which test is run
+int test = 1;
+
 // ========================================================
 // ===               Function Prototypes                ===
 // ========================================================
@@ -90,25 +93,46 @@ void setup()
 
 void loop()
 {
-  if (doneCourse)
+  // speed test
+  while (test == 1)
   {
-    motors.stop();
-  }
-  else
-  {
-    sideDistance = ultrasonicSide.readDistance();
-    frontDistance = ultrasonicFront.readDistance();
-    updateAngles();
-    checkPitTrap();
-
-    if (frontDistance <= frontWallLimit + linearInertia && !inPitTrap) // frontWallLimit)
+    motors.start();
+    while (ultrasonicSide.readDistance() < 100)
     {
-      initiateTurn();
+    }
+    delay(4000);
+    motors.stop();
+    while (1)
+    {
+    }
+  }
+
+  // 10cm from wall
+  while (test == 2)
+  {
+    frontDistance = ultrasonicFront.readDistance();
+    if (frontDistance <= frontWallLimit + linearInertia) // frontWallLimit)
+    {
+      motors.stop();
+      while (1)
+      {
+      }
     }
     else // if (error >= 5)
     {
-      motors.adjust(stopCorrection.calculate(frontDistance, frontWallLimit + linearInertia), courseCorrection.calculate(sideWallLimit, sideDistance));
-      // motors.adjust(255, courseCorrection.calculate(sideWallLimit, sideDistance));
+      motors.adjust(stopCorrection.calculate(frontDistance, frontWallLimit + linearInertia), 0);
+    }
+  }
+
+  // turn accuracy
+  while (test == 3)
+  {
+    delay(1000);
+    turn();
+    motors.adjust(0, 0);
+
+    while (1)
+    {
     }
   }
 }
