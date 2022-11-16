@@ -12,7 +12,8 @@ public:
     float getKp();
     float getKd();
     float getKi();
-    double prevTime = 0, prevError = 0;
+    double prevError = 0;
+    long prevTime = 0;
 
 private:
     float Kp, Kd, Ki, prevIntegralError, max, min;
