@@ -3,6 +3,8 @@
 
 #include <MPU6050_6Axis_MotionApps20.h>
 
+#define SAMPLING_RATE 5 // ms
+
 class Gyro
 {
 public:
@@ -16,6 +18,7 @@ private:
     MPU6050 mpu_;
     uint16_t imu_packetsize_;
     float ypr[3]; // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+    unsigned long lastReadTime = 0;
 };
 
 #endif

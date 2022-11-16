@@ -23,9 +23,6 @@ const int TILE_LENGTH = 300; // mm
 int turns = 0;
 bool doneCourse = false;
 
-long gyroprevtime = 0;
-long gyrocurtime = 0;
-
 // the wanted distances from each wall in mm
 int frontWallLimit = 170;
 int sideWallLimit = 100;
@@ -119,11 +116,7 @@ void loop()
 
 void updateAngles()
 {
-  gyrocurtime = millis();
-  if (gyrocurtime - gyroprevtime < 5)
-    delay(5 - (gyrocurtime - gyroprevtime));
   mpu.readData();
-  gyroprevtime = gyrocurtime;
 }
 
 void initiateTurn()
@@ -170,6 +163,7 @@ void turn()
     prevAngle = currAngle;
   }
 
+  // Stop motors after completing turn
   motors.adjust(0, 0);
   delay(1000);
 
@@ -184,7 +178,6 @@ void turn()
   ultrasonicSide.firstReading = true;
   ultrasonicFront.firstReading = true;
 
-  // Stop motors after completing turn
   stabilizeKalmanFilter(20);
   motors.adjust(MOTOR_MAX_SPEED, 0);
 }

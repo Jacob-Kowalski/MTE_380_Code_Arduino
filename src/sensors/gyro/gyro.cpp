@@ -32,6 +32,13 @@ bool Gyro::init()
 
 void Gyro::readData()
 {
+    // Restrict gyro sensor sampling rate
+    if (millis() - lastReadTime <= SAMPLING_RATE)
+    {
+        delay(SAMPLING_RATE - (millis() - lastReadTime));
+    }
+    lastReadTime = millis();
+
     uint8_t fifoBuffer[64]; // FIFO storage buffer
     Quaternion q;           // [w, x, y, z]         quaternion container
     VectorFloat gravity;    // [x, y, z]            gravity vector
