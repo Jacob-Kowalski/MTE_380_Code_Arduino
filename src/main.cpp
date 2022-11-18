@@ -32,7 +32,7 @@ int sideDistance, frontDistance = 0;
 
 bool inPitTrap = false;
 
-int linearInertia = 110;
+int linearInertia = 150;
 int rotationalInertia = 11; // degrees
 
 // Initialize Sensor objects
@@ -44,8 +44,8 @@ Ultrasonic ultrasonicSide('s');
 Motors motors;
 
 // PID Controllers
-PID courseCorrection(-140, 140, 6, 100, 0);
-PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 2.5, 0.5, 0);
+PID courseCorrection(-140, 140, 5.5, 100, 0);
+PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 3, 0.5, 0);
 PID turnCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 5, 100, 0);
 
 // ========================================================
@@ -165,7 +165,6 @@ void turn()
 
   // Stop motors after completing turn
   motors.adjust(0, 0);
-  delay(1000);
 
   turns++;
 
@@ -178,7 +177,7 @@ void turn()
   ultrasonicSide.firstReading = true;
   ultrasonicFront.firstReading = true;
 
-  stabilizeKalmanFilter(20);
+  stabilizeKalmanFilter(5);
   motors.adjust(MOTOR_MAX_SPEED, 0);
 }
 
