@@ -33,9 +33,9 @@ bool Gyro::init()
 void Gyro::readData()
 {
     // Restrict gyro sensor sampling rate
-    if (millis() - lastReadTime <= SAMPLING_RATE)
+    if (millis() - lastReadTime <= GYRO_SAMPLING_RATE)
     {
-        delay(SAMPLING_RATE - (millis() - lastReadTime));
+        delay(GYRO_SAMPLING_RATE - (millis() - lastReadTime));
     }
     lastReadTime = millis();
 

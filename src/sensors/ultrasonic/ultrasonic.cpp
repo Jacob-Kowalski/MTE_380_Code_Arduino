@@ -32,9 +32,9 @@ void Ultrasonic::init()
 int Ultrasonic::readDistance()
 {
     // Restrict ultrasonic sensor sampling rate
-    if (millis() - lastReadTime <= SAMPLING_RATE)
+    if (millis() - lastReadTime <= ULTRASONIC_SAMPLING_RATE)
     {
-        delay(SAMPLING_RATE - (millis() - lastReadTime));
+        delay(ULTRASONIC_SAMPLING_RATE - (millis() - lastReadTime));
     }
     lastReadTime = millis();
 

@@ -10,7 +10,7 @@
 #define TRIGGER_SIDE 10
 #define ECHO_SIDE 11
 
-#define SAMPLING_RATE 25 // ms
+#define ULTRASONIC_SAMPLING_RATE 25 // ms
 #define SUDDEN_CHANGE_CLAMP 600
 #define NOISE_CLAMP 10000
 
