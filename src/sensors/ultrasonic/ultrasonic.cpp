@@ -70,8 +70,10 @@ int Ultrasonic::readDistance()
     firstReading = false;
     prevDistReading = distance;
 
-    // The below code outputs the filtered code.
-    distance = kalmanFilter(distance);
+    if (position == 's')
+    {
+        distance = kalmanFilter(distance);
+    }
 
     return distance;
 }
