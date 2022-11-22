@@ -36,7 +36,6 @@ int linearInertia = 150;
 int rotationalInertia = 11; // degrees
 
 // Initialize Sensor objects
-Gyro mpu;
 Ultrasonic ultrasonicFront('f');
 Ultrasonic ultrasonicSide('s');
 
@@ -45,7 +44,7 @@ Motors motors;
 
 // PID Controllers
 PID courseCorrection(-140, 140, 5.5, 100, 0);
-PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 3, 0.5, 0);
+PID stopCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 2, 1.5, 0);
 PID turnCorrection(MOTOR_MIN_SPEED, MOTOR_MAX_SPEED, 5, 100, 0);
 
 // ========================================================
@@ -57,6 +56,7 @@ void initiateTurn();
 void turn();
 void checkPitTrap();
 void stabilizeKalmanFilter(int readCount);
+void adjustBeforeTurn();
 
 // ========================================================
 // ===                     Setup                        ===
@@ -72,9 +72,9 @@ void setup()
   motors.init();
   ultrasonicFront.init();
   ultrasonicSide.init();
-  mpu.init();
-
-  stabilizeKalmanFilter(10);
+  mpu->init();
+  mpu->run();
+  stabilizeKalmanFilter(30);
 
   delay(2000);
 
@@ -97,15 +97,14 @@ void loop()
     frontDistance = ultrasonicFront.readDistance();
     updateAngles();
     checkPitTrap();
-
     if (frontDistance <= frontWallLimit + linearInertia && !inPitTrap) // frontWallLimit)
     {
+      adjustBeforeTurn();
       initiateTurn();
     }
     else // if (error >= 5)
     {
       motors.adjust(stopCorrection.calculate(frontDistance, frontWallLimit + linearInertia), courseCorrection.calculate(sideWallLimit, sideDistance));
-      // motors.adjust(255, courseCorrection.calculate(sideWallLimit, sideDistance));
     }
   }
 }
@@ -116,7 +115,29 @@ void loop()
 
 void updateAngles()
 {
-  mpu.readData();
+  mpu->readData();
+}
+
+void adjustBeforeTurn()
+{
+  while (abs(frontDistance - frontWallLimit) > 15)
+  {
+    sideDistance = ultrasonicSide.readDistance();
+    frontDistance = ultrasonicFront.readDistance();
+
+    if (frontDistance < frontWallLimit)
+    {
+      motors.adjust(-120, 0);
+      delay(8);
+      motors.adjust(0, 0);
+    }
+    else if (frontDistance > frontWallLimit)
+    {
+      motors.adjust(120, 0);
+      delay(8);
+      motors.adjust(0, 0);
+    }
+  }
 }
 
 void initiateTurn()
@@ -147,22 +168,21 @@ void initiateTurn()
 void turn()
 {
   double prevAngle = 0;
-  double currAngle = mpu.getYaw();
+  double currAngle = mpu->getYaw();
   prevAngle = currAngle;
   double angleTurned = 0;
 
   turnCorrection.prevTime = millis();
   turnCorrection.prevError = 0;
 
-  while (angleTurned < 90 - rotationalInertia - turns / 2) // Upper bound should be adjusted alongside turnCorrectionPID
+  while (angleTurned < 90 - rotationalInertia) // Upper bound should be adjusted alongside turnCorrectionPID
   {
-    motors.adjust(turnCorrection.calculate(90 - rotationalInertia - turns / 2, angleTurned), 510);
+    motors.adjust(turnCorrection.calculate(90 - rotationalInertia, angleTurned), 510);
     updateAngles();
-    currAngle = mpu.getYaw();
+    currAngle = mpu->getYaw();
     angleTurned = angleTurned + abs(abs(currAngle) - abs(prevAngle));
     prevAngle = currAngle;
   }
-
   // Stop motors after completing turn
   motors.adjust(0, 0);
 
@@ -183,7 +203,7 @@ void turn()
 
 void checkPitTrap()
 {
-  double angle = mpu.getPitch();
+  double angle = mpu->getPitch();
   if (angle > 5 && !inPitTrap)
   {
     inPitTrap = true;
