@@ -5,12 +5,12 @@
 #define UTRASONIC_POWER_SIDE 49
 
 // Echo and trigger pins for ultrasonic sensor
-#define TRIGGER_FRONT 12
-#define ECHO_FRONT 13
+#define TRIGGER_FRONT 30
+#define ECHO_FRONT 31
 #define TRIGGER_SIDE 10
 #define ECHO_SIDE 11
 
-#define SAMPLING_RATE 25 // ms
+#define ULTRASONIC_SAMPLING_RATE 25 // ms
 #define SUDDEN_CHANGE_CLAMP 600
 #define NOISE_CLAMP 10000
 
