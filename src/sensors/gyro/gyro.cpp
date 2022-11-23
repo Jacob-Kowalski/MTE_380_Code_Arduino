@@ -7,8 +7,6 @@ bool Gyro::init()
 {
     dataReady = false;
 
-    // mpu_.initialize();
-
     pinMode(GYRO_INTERRUPT_PIN, INPUT);
 
     // verify connection
@@ -26,9 +24,6 @@ bool Gyro::init()
     {
         Serial.println(F("Enabling DMP..."));
         mpu_.setDMPEnabled(true);
-
-        // get expected DMP packet size for later comparison
-        imu_packetsize_ = mpu_.dmpGetFIFOPacketSize();
         Serial.println(F("DMP ready! Waiting for first interrupt..."));
     }
     else
@@ -42,6 +37,9 @@ bool Gyro::init()
         Serial.print(")");
         return false;
     }
+    yaw.push(0);
+    pitch.push(0);
+    roll.push(0);
 
     return true;
 }
@@ -68,43 +66,40 @@ void Gyro::readData()
         delay(GYRO_SAMPLING_RATE - (millis() - lastReadTime));
     }
     lastReadTime = millis();
-    // Serial.println(dataReady);
 
     if (dataReady)
     {
-        // uint16_t fifoCount = mpu_.getFIFOCount();
-        // while (fifoCount < imu_packetsize_)
-        // {
-        //     fifoCount = mpu_.getFIFOCount();
-        // }
         uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-        // mpu_.getFIFOBytes(fifoBuffer, imu_packetsize_);
-
-        // track FIFO count here in case there is > 1 packet available
-        // (this lets us immediately read more without waiting for an interrupt)
-        // fifoCount -= imu_packetsize_;
 
         Quaternion q;        // [w, x, y, z]         quaternion container
         VectorFloat gravity; // [x, y, z]            gravity vector
+        float ypr[3];        // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
         int fifoBufferStatus = mpu_.dmpGetCurrentFIFOPacket(fifoBuffer);
-        // if (fifoBufferStatus != 1)
-        // {
-        //     Serial.println("invalid fifo buffer status");
-        // }
-        // else if (fifoBufferStatus == 1)
-        // {
-        //     Serial.println("fifo buffer status is valid");
-        // }
+
         if (fifoBufferStatus)
         {
             mpu_.dmpGetQuaternion(&q, fifoBuffer);
             mpu_.dmpGetGravity(&gravity, &q);
             mpu_.dmpGetYawPitchRoll(ypr, &q, &gravity);
-        }
 
-        // mpu_.resetFIFO();
+            // Exponential Filtering and noise clamping
+
+            if (abs(abs(ypr[0] * 180 / M_PI) - abs(yaw.last())) < GYRO_NOISE_CLAMP)
+            {
+                yaw.push((MPU_FILTER_ALPHA * (ypr[0] * 180 / M_PI) + (1 - MPU_FILTER_ALPHA) * yaw.last()));
+            }
+
+            if (abs(abs(ypr[1] * 180 / M_PI) - abs(pitch.last())) < GYRO_NOISE_CLAMP)
+            {
+                pitch.push((MPU_FILTER_ALPHA * (ypr[1] * 180 / M_PI) + (1 - MPU_FILTER_ALPHA) * pitch.last()));
+            }
+
+            if (abs(abs(ypr[2] * 180 / M_PI) - abs(roll.last())) < GYRO_NOISE_CLAMP)
+            {
+                roll.push((MPU_FILTER_ALPHA * (ypr[2] * 180 / M_PI) + (1 - MPU_FILTER_ALPHA) * roll.last()));
+            }
+        }
     }
     dataReady = false;
 }
@@ -116,15 +111,15 @@ uint8_t Gyro::getIntStatus()
 
 float Gyro::getYaw()
 {
-    return ypr[0] * 180 / M_PI;
+    return yaw.last();
 }
 
 float Gyro::getPitch()
 {
-    return ypr[1] * 180 / M_PI;
+    return pitch.last();
 }
 
 float Gyro::getRoll()
 {
-    return ypr[2] * 180 / M_PI;
+    return roll.last();
 }
